@@ -1,0 +1,581 @@
+/* Channel.css */
+:root {
+  --twitch-purple: #9146FF;
+  --twitch-purple-dark: #772CE8;
+  --twitch-dark: #0E0E10;
+  --twitch-gray: #1F1F23;
+  --twitch-light-gray: #3A3A3D;
+  --twitch-text: #EFEFF1;
+  --twitch-text-secondary: #ADADB8;
+  --twitch-success: #00B26C;
+  --twitch-error: #EB0400;
+  --twitch-blue: #00A7E5;
+}
+
+/* Основной контейнер канала */
+.channel-page {
+  width: 100%;
+  min-height: 100vh;
+  background: var(--twitch-dark);
+  color: var(--twitch-text);
+  font-family: 'Inter', sans-serif;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Шапка канала - ВЕРХ */
+.channel-header {
+  background: var(--twitch-gray);
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--twitch-light-gray);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.channel-info-top {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.channel-avatar-container {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.channel-avatar {
+  width: 70px;
+  height: 70px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid var(--twitch-purple);
+}
+
+.live-indicator {
+  position: absolute;
+  bottom: -4px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 3px 10px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.live-indicator.live {
+  background: var(--twitch-error);
+  color: white;
+}
+
+.live-indicator.offline {
+  background: var(--twitch-light-gray);
+  color: var(--twitch-text-secondary);
+}
+
+.indicator-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.live-indicator.live .indicator-dot {
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.channel-info-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.channel-name-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.channel-name {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--twitch-text);
+}
+
+.channel-badges {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.badge {
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+.badge.owner {
+  background: rgba(145, 70, 255, 0.2);
+  color: var(--twitch-purple);
+}
+
+.badge.live {
+  background: var(--twitch-error);
+  color: white;
+}
+
+.channel-stats {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.stat {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.stat-value {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--twitch-text);
+}
+
+.stat-label {
+  font-size: 13px;
+  color: var(--twitch-text-secondary);
+}
+
+.session-id {
+  background: rgba(145, 70, 255, 0.1);
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(145, 70, 255, 0.3);
+  white-space: nowrap;
+}
+
+.session-id .stat-value {
+  font-family: monospace;
+  font-size: 12px;
+  color: var(--twitch-purple);
+  cursor: pointer;
+}
+
+/* Кнопки действий - под аватаркой */
+.channel-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.btn.primary {
+  background: var(--twitch-purple);
+  color: white;
+}
+
+.btn.primary:hover {
+  background: var(--twitch-purple-dark);
+}
+
+.btn.secondary {
+  background: var(--twitch-light-gray);
+  color: var(--twitch-text);
+}
+
+.btn.secondary:hover {
+  background: var(--twitch-text-secondary);
+}
+
+.subscribe-btn {
+  background: var(--twitch-light-gray);
+  color: var(--twitch-text);
+  min-width: 120px;
+}
+
+.subscribe-btn.subscribed {
+  background: var(--twitch-success);
+  color: white;
+}
+
+.subscribe-btn:hover:not(.subscribed) {
+  background: var(--twitch-purple);
+  color: white;
+}
+
+.stream-btn {
+  background: var(--twitch-purple);
+  color: white;
+  padding: 8px 20px;
+  min-width: 140px;
+}
+
+.stream-btn.live {
+  background: var(--twitch-error);
+}
+
+.stream-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(145, 70, 255, 0.3);
+}
+
+.stream-btn.live:hover {
+  box-shadow: 0 4px 12px rgba(235, 4, 0, 0.3);
+}
+
+/* Основное содержимое - СЕРЕДИНА */
+.channel-content {
+  flex: 1;
+  display: flex;
+  gap: 20px;
+  padding: 20px;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* Левая часть - видео и описание */
+.channel-left {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+/* Видеоконтейнер */
+.video-container {
+  background: #000;
+  border-radius: 8px;
+  overflow: hidden;
+  position: relative;
+  aspect-ratio: 16/9;
+  flex-shrink: 0;
+}
+
+/* Офлайн оверлей */
+.offline-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--twitch-gray);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.offline-content {
+  text-align: center;
+  max-width: 400px;
+  padding: 30px;
+}
+
+.offline-icon {
+  margin-bottom: 16px;
+}
+
+.offline-content h3 {
+  font-size: 22px;
+  font-weight: 700;
+  margin: 0 0 10px 0;
+  color: var(--twitch-text);
+}
+
+.offline-content p {
+  color: var(--twitch-text-secondary);
+  margin-bottom: 16px;
+  line-height: 1.5;
+  font-size: 14px;
+}
+
+.viewers-waiting {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: rgba(145, 70, 255, 0.1);
+  border-radius: 18px;
+  color: var(--twitch-purple);
+  font-weight: 500;
+  margin-bottom: 16px;
+  font-size: 13px;
+}
+
+/* Секция описания - НИЗ левой части */
+.description-section {
+  background: var(--twitch-gray);
+  border-radius: 8px;
+  padding: 20px;
+  flex-shrink: 0;
+}
+
+.description-section h3 {
+  margin: 0 0 16px 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--twitch-text);
+}
+
+.description-content p {
+  margin: 0 0 18px 0;
+  line-height: 1.6;
+  color: var(--twitch-text);
+  font-size: 14px;
+  word-break: break-word;
+}
+
+.description-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 16px;
+  border-top: 1px solid var(--twitch-light-gray);
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 90px;
+}
+
+.meta-label {
+  font-size: 11px;
+  color: var(--twitch-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+}
+
+.meta-value {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--twitch-text);
+}
+
+.edit-description {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  color: var(--twitch-text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 4px;
+  transition: all 0.2s;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.edit-description:hover {
+  background: var(--twitch-light-gray);
+  color: var(--twitch-text);
+}
+
+/* Правая часть - чат */
+.channel-right {
+  width: 340px;
+  flex-shrink: 0;
+}
+
+.chat-container {
+  height: 100%;
+  min-height: 500px;
+  background: var(--twitch-gray);
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Alert о завершении стрима */
+.stream-ended-alert {
+  position: fixed;
+  top: 90px;
+  right: 20px;
+  z-index: 1000;
+  background: var(--twitch-gray);
+  border: 1px solid var(--twitch-light-gray);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.alert-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  max-width: 380px;
+}
+
+.alert-icon {
+  font-size: 22px;
+  flex-shrink: 0;
+}
+
+.alert-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.alert-text h4 {
+  margin: 0 0 4px 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--twitch-text);
+}
+
+.alert-text p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--twitch-text-secondary);
+}
+
+.alert-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* Загрузка и ошибки */
+.channel-loading,
+.channel-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  font-size: 18px;
+  font-weight: 500;
+  padding: 20px;
+  color: var(--twitch-text);
+}
+
+.channel-error {
+  color: var(--twitch-error);
+}
+
+/* Адаптивность */
+@media (max-width: 1200px) {
+  .channel-content {
+    flex-direction: column;
+  }
+  
+  .channel-right {
+    width: 100%;
+    height: 500px;
+  }
+  
+  .chat-container {
+    height: 500px;
+  }
+}
+
+@media (max-width: 768px) {
+  .channel-header {
+    padding: 14px 16px;
+  }
+  
+  .channel-info-top {
+    flex-direction: column;
+    text-align: center;
+    gap: 12px;
+  }
+  
+  .channel-avatar {
+    width: 60px;
+    height: 60px;
+  }
+  
+  .channel-name {
+    font-size: 20px;
+  }
+  
+  .channel-stats {
+    justify-content: center;
+    gap: 16px;
+  }
+  
+  .stat {
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+  
+  .channel-actions {
+    justify-content: center;
+  }
+  
+  .btn {
+    padding: 8px 14px;
+    font-size: 12px;
+  }
+  
+  .stream-btn,
+  .subscribe-btn {
+    min-width: auto;
+  }
+  
+  .channel-content {
+    padding: 16px;
+    gap: 16px;
+  }
+  
+  .description-meta {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+}

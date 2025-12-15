@@ -1,0 +1,103 @@
+/* src/AppContent.css */
+:root {
+  --twitch-dark: #0E0E10;
+  --twitch-gray: #1F1F23;
+  --twitch-light-gray: #3A3A3D;
+  --twitch-text: #EFEFF1;
+  --twitch-text-secondary: #ADADB8;
+  --header-height: 70px;
+  --sidebar-width: 240px;
+}
+
+/* Основной контейнер приложения */
+.app-container {
+  min-height: 100vh;
+  background: var(--twitch-dark);
+  color: var(--twitch-text);
+  font-family: 'Inter', sans-serif;
+}
+
+/* Область основного контента под хедером */
+.main-content-area {
+  display: flex;
+  position: fixed;
+  top: var(--header-height);
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow: hidden;
+}
+
+/* Боковая панель - фиксированная слева */
+.sidebar {
+  width: var(--sidebar-width);
+  height: 100%;
+  background: var(--twitch-gray);
+  border-right: 1px solid var(--twitch-light-gray);
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+
+/* Основное содержимое страниц */
+.page-content {
+  flex: 1;
+  height: 100%;
+  overflow-y: auto;
+  background: var(--twitch-dark);
+  padding: 0;
+}
+
+/* Стили для всех страниц внутри page-content */
+.page-content > * {
+  min-height: 100%;
+}
+
+/* Загрузка и ошибки */
+.loading-state,
+.error-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  font-size: 18px;
+  font-weight: 500;
+}
+
+/* Прокрутка для сайдбара и контента */
+.sidebar::-webkit-scrollbar,
+.page-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.sidebar::-webkit-scrollbar-track,
+.page-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar::-webkit-scrollbar-thumb,
+.page-content::-webkit-scrollbar-thumb {
+  background: var(--twitch-light-gray);
+  border-radius: 4px;
+}
+
+.sidebar::-webkit-scrollbar-thumb:hover,
+.page-content::-webkit-scrollbar-thumb:hover {
+  background: var(--twitch-text-secondary);
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+  .main-content-area {
+    flex-direction: column;
+  }
+  
+  .sidebar {
+    width: 100%;
+    height: auto;
+    max-height: 200px;
+  }
+  
+  .page-content {
+    width: 100%;
+  }
+}

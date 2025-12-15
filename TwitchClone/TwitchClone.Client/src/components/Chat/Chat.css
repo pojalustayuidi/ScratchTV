@@ -1,0 +1,475 @@
+/* Основные стили Twitch */
+:root {
+  --twitch-purple: #9146FF;
+  --twitch-purple-dark: #772CE8;
+  --twitch-dark: #0E0E10;
+  --twitch-gray: #1F1F23;
+  --twitch-light-gray: #3A3A3D;
+  --twitch-text: #EFEFF1;
+  --twitch-text-secondary: #ADADB8;
+  --twitch-success: #00B26C;
+  --twitch-error: #EB0400;
+  --twitch-warning: #FFD748;
+}
+
+/* Контейнер чата */
+.chat-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--twitch-dark);
+  border-radius: 8px;
+  overflow: hidden;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* Заголовок */
+.chat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  background: var(--twitch-gray);
+  border-bottom: 1px solid var(--twitch-light-gray);
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.channel-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.channel-icon {
+  font-size: 20px;
+}
+
+.channel-name {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--twitch-text);
+}
+
+/* Статус подключения */
+.connection-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.connection-status.connected {
+  background: rgba(0, 178, 108, 0.1);
+  color: var(--twitch-success);
+}
+
+.connection-status.disconnected {
+  background: rgba(235, 4, 0, 0.1);
+  color: var(--twitch-error);
+}
+
+.status-pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.connected .status-pulse {
+  background: var(--twitch-success);
+  animation: pulse 2s infinite;
+}
+
+.disconnected .status-pulse {
+  background: var(--twitch-error);
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* Кнопка переподключения */
+.reconnect-btn.twitch-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: var(--twitch-purple);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.reconnect-btn.twitch-btn:hover {
+  background: var(--twitch-purple-dark);
+}
+
+/* Ошибка */
+.chat-error.twitch-alert {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  background: rgba(235, 4, 0, 0.1);
+  border-left: 4px solid var(--twitch-error);
+  color: var(--twitch-error);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* Индикатор набора */
+.typing-indicator.twitch-typing {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 20px;
+  background: rgba(145, 70, 255, 0.05);
+  border-bottom: 1px solid var(--twitch-light-gray);
+}
+
+.typing-dots {
+  display: flex;
+  gap: 4px;
+}
+
+.typing-dots .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--twitch-purple);
+  animation: typing 1.4s infinite;
+}
+
+.typing-dots .dot:nth-child(2) { animation-delay: 0.2s; }
+.typing-dots .dot:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes typing {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+.typing-text {
+  color: var(--twitch-text-secondary);
+  font-size: 13px;
+}
+
+/* Сообщения */
+.chat-messages.twitch-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 0;
+  background: var(--twitch-dark);
+}
+
+/* Разделитель дат */
+.date-divider.twitch-divider {
+  display: flex;
+  align-items: center;
+  margin: 24px 20px;
+  color: var(--twitch-text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.divider-line {
+  flex: 1;
+  height: 1px;
+  background: var(--twitch-light-gray);
+}
+
+.divider-text {
+  padding: 0 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Сообщение */
+.message.twitch-message {
+  padding: 8px 20px;
+  transition: background 0.2s;
+}
+
+.message.twitch-message:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.message.twitch-message.own {
+  background: rgba(145, 70, 255, 0.03);
+}
+
+/* Хедер сообщения */
+.message-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.avatar-container {
+  position: relative;
+}
+
+.message-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.own-indicator {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--twitch-purple);
+  border: 2px solid var(--twitch-dark);
+}
+
+.message-user-info {
+  flex: 1;
+}
+
+.username-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 2px;
+}
+
+.username {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.user-badges {
+  display: flex;
+  gap: 4px;
+}
+
+.badge {
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.streamer-badge {
+  background: rgba(145, 70, 255, 0.2);
+  color: var(--twitch-purple);
+  display: flex;
+  align-items: center;
+  padding: 2px 4px;
+}
+
+.mod-badge {
+  background: #00B26C;
+  color: white;
+}
+
+.you-badge {
+  background: rgba(145, 70, 255, 0.2);
+  color: var(--twitch-purple);
+}
+
+.message-time {
+  color: var(--twitch-text-secondary);
+  font-size: 12px;
+}
+
+/* Контент сообщения */
+.message-content-wrapper {
+  margin-left: 44px;
+}
+
+.message-text {
+  color: var(--twitch-text);
+  font-size: 14px;
+  line-height: 1.5;
+  word-wrap: break-word;
+}
+
+/* Системные сообщения */
+.system-message-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--twitch-text-secondary);
+  font-size: 13px;
+  font-style: italic;
+}
+
+.system-icon {
+  color: var(--twitch-text-secondary);
+}
+
+/* Удаленные сообщения */
+.deleted-message-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--twitch-text-secondary);
+  font-size: 13px;
+  font-style: italic;
+}
+
+.deleted-icon {
+  color: var(--twitch-text-secondary);
+}
+
+/* Пустой чат */
+.no-messages.twitch-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 40px 20px;
+  text-align: center;
+}
+
+.empty-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  opacity: 0.5;
+}
+
+.empty-title {
+  color: var(--twitch-text);
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0 0 8px 0;
+}
+
+.empty-subtitle {
+  color: var(--twitch-text-secondary);
+  font-size: 14px;
+  margin: 0;
+}
+
+/* Поле ввода */
+.chat-input-form.twitch-input {
+  padding: 16px 20px;
+  background: var(--twitch-gray);
+  border-top: 1px solid var(--twitch-light-gray);
+}
+
+.input-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.input-border-wrapper {
+  border: 2px solid var(--twitch-light-gray);
+  border-radius: 6px;
+  transition: border-color 0.2s;
+}
+
+.input-border-wrapper:focus-within {
+  border-color: var(--twitch-purple);
+}
+
+.chat-input {
+  width: 100%;
+  padding: 12px;
+  background: transparent;
+  border: none;
+  color: var(--twitch-text);
+  font-size: 14px;
+  outline: none;
+}
+
+.chat-input::placeholder {
+  color: var(--twitch-text-secondary);
+}
+
+.chat-input.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.input-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.char-counter {
+  padding-left: 4px;
+}
+
+.char-count {
+  color: var(--twitch-text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.char-count.warning {
+  color: var(--twitch-warning);
+}
+
+/* Кнопка отправки */
+.send-button.twitch-send-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: var(--twitch-purple);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.send-button.twitch-send-btn:hover:not(.disabled) {
+  background: var(--twitch-purple-dark);
+  transform: translateY(-1px);
+}
+
+.send-button.twitch-send-btn.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: var(--twitch-light-gray);
+}
+
+.send-text {
+  display: block;
+}
+
+/* Прокрутка */
+.chat-messages::-webkit-scrollbar {
+  width: 8px;
+}
+
+.chat-messages::-webkit-scrollbar-track {
+  background: var(--twitch-dark);
+}
+
+.chat-messages::-webkit-scrollbar-thumb {
+  background: var(--twitch-light-gray);
+  border-radius: 4px;
+}
+
+.chat-messages::-webkit-scrollbar-thumb:hover {
+  background: var(--twitch-text-secondary);
+}

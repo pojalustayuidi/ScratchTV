@@ -1,0 +1,71 @@
+.home-container {
+  display: flex;
+  margin-top: 70px; /* отступ для AppBar */
+  min-height: calc(100vh - 70px);
+}
+
+.home-main {
+  flex: 1;
+  padding: 20px;
+  background-color: #0e0e10;
+  color: var(--color-text);
+}
+.home-page {
+  height: 100%;
+  min-height: 100%;
+  background: var(--twitch-dark);
+  color: var(--twitch-text);
+  padding: 20px;
+}
+
+/* Строка с заголовками и фильтрами */
+.sections-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+.tabs-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.tabs-title {
+  font-weight: bold;
+  color: #fff;
+}
+
+.tab-button {
+  background-color: #18181b;
+  color: #ccc;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.tab-button:hover {
+  background-color: #2c2c2c;
+}
+
+.tab-button.active {
+  background-color: #9147ff;
+  color: white;
+}
+.section-title {
+  font-size: 24px;
+  font-weight: 600;
+  border-bottom: 2px solid var(--color-primary);
+  padding-bottom: 8px;
+}
+
+/* Правая часть строки для будущих фильтров или разделов */
+.section-right {
+  display: flex;
+  gap: 15px;
+  font-size: 16px;
+  color: var(--color-text-muted);
+  align-items: center;
+}
