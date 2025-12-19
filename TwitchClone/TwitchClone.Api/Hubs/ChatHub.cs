@@ -1,203 +1,266 @@
-// Hubs/ChatHub.cs
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
-using TwitchClone.Api.Data;
-using TwitchClone.Api.Models;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
+using TwitchClone.Api.Data;
+using TwitchClone.Api.DTOs.Chat;
+using TwitchClone.Api.Models;
+using TwitchClone.Domain.Models;
 
 namespace TwitchClone.Api.Hubs
 {
-    [Authorize]
     public class ChatHub : Hub
     {
         private readonly AppDbContext _context;
-        private readonly IHttpContextAccessor _httpContextAccessor;
 
-        public ChatHub(AppDbContext context, IHttpContextAccessor httpContextAccessor)
+        public ChatHub(AppDbContext context)
         {
             _context = context;
-            _httpContextAccessor = httpContextAccessor;
         }
 
-        private int GetCurrentUserId()
+        private int? GetUserId()
         {
-            var userIdClaim = _httpContextAccessor.HttpContext?.User
-                .FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
-            
-            return userIdClaim != null ? int.Parse(userIdClaim.Value) : 0;
+            if (Context.User?.Identity?.IsAuthenticated != true)
+                return null;
+
+            var claim = Context.User.FindFirst(ClaimTypes.NameIdentifier);
+            return claim != null && int.TryParse(claim.Value, out var userId) ? userId : null;
+        }
+
+        private async Task<bool> IsModerator(int channelId, int userId)
+        {
+            return await _context.ChannelModerators
+                .AnyAsync(m => m.ChannelId == channelId && m.UserId == userId);
+        }
+
+        private async Task<bool> IsStreamer(int channelId, int userId)
+        {
+            return await _context.Channels
+                .AnyAsync(c => c.Id == channelId && c.UserId == userId);
         }
 
         public async Task JoinChannel(int channelId)
         {
-            var userId = GetCurrentUserId();
-            if (userId == 0) return;
-
-            var user = await _context.Users.FindAsync(userId);
             var channel = await _context.Channels.FindAsync(channelId);
-
-            if (user == null || channel == null)
+            if (channel == null)
             {
-                await Clients.Caller.SendAsync("Error", "Пользователь или канал не найден");
+                await Clients.Caller.SendAsync("Error", "Канал не найден");
                 return;
             }
 
-            // Добавляем в группу канала
+            // Всегда добавляем в группу, даже для гостей
             await Groups.AddToGroupAsync(Context.ConnectionId, $"channel_{channelId}");
 
-            // Системное сообщение о входе
-            var joinMessage = new ChatMessage
+            // Отправляем историю чата
+            await SendHistory(channelId);
+
+            var userId = GetUserId();
+            
+            // Если пользователь не авторизован (гость)
+            if (userId == null)
             {
-                ChannelId = channelId,
-                UserId = null,
-                Message = $"{user.Username} присоединился к чату",
-                IsSystemMessage = true,
-                Timestamp = DateTime.UtcNow
-            };
-
-            await _context.ChatMessages.AddAsync(joinMessage);
-            await _context.SaveChangesAsync();
-
-            // Отправляем всем в канале
-            await Clients.Group($"channel_{channelId}").SendAsync("ReceiveMessage", new
-            {
-                Id = joinMessage.Id,
-                UserId = joinMessage.UserId,
-                Username = "Система",
-                AvatarUrl = "",
-                Message = joinMessage.Message,
-                Timestamp = joinMessage.Timestamp,
-                IsSystemMessage = joinMessage.IsSystemMessage,
-                Color = "#666666"
-            });
-
-            // Отправляем историю чата новому пользователю
-            var history = await _context.ChatMessages
-                .Where(m => m.ChannelId == channelId)
-                .OrderByDescending(m => m.Timestamp)
-                .Take(50)
-                .Include(m => m.User)
-                .Select(m => new
+                // Отправляем системное сообщение только для гостя
+                var guestSystemMessage = new ChatMessageResponse
                 {
-                    Id = m.Id,
-                    UserId = m.UserId,
-                    Username = m.User != null ? m.User.Username : "Система",
-                    AvatarUrl = m.User != null ? m.User.AvatarUrl : "",
-                    Message = m.Message,
-                    Timestamp = m.Timestamp,
-                    IsSystemMessage = m.IsSystemMessage,
-                    Color = m.User != null ? m.User.ChatColor : "#FFFFFF"
-                })
-                .OrderBy(m => m.Timestamp)
-                .ToListAsync();
+                    Id = 0,
+                    ChannelId = channelId,
+                    Username = "System",
+                    Message = "Вы в гостевом режиме. Войдите, чтобы писать в чат.",
+                    Timestamp = DateTime.UtcNow,
+                    IsSystemMessage = true,
+                    Color = "#9146FF",
+                    IsModerator = false,
+                    IsStreamer = false,
+                    IsDeleted = false
+                };
+                
+                await Clients.Caller.SendAsync("ReceiveMessage", guestSystemMessage);
+                return;
+            }
 
-            await Clients.Caller.SendAsync("LoadHistory", history);
+            // Для авторизованных пользователей
+            var user = await _context.Users.FindAsync(userId.Value);
+            if (user != null)
+            {
+                await SendSystemMessage(channelId, $"{user.Username} вошёл в чат");
+            }
+        }
+
+        public async Task LeaveChannel(int channelId)
+        {
+            await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"channel_{channelId}");
         }
 
         public async Task SendMessage(int channelId, string message)
         {
-            var userId = GetCurrentUserId();
-            if (userId == 0)
+            if (string.IsNullOrWhiteSpace(message) || message.Length > 500)
             {
-                await Clients.Caller.SendAsync("Error", "Не авторизован");
+                await Clients.Caller.SendAsync("Error",
+                    message.Length > 500 ? "Сообщение слишком длинное" : "Сообщение не может быть пустым");
                 return;
             }
 
-            var user = await _context.Users.FindAsync(userId);
-            var channel = await _context.Channels.FindAsync(channelId);
-
-            if (user == null || channel == null)
+            var userId = GetUserId();
+            
+            // Гости не могут отправлять сообщения
+            if (userId == null)
             {
-                await Clients.Caller.SendAsync("Error", "Ошибка отправки");
+                await Clients.Caller.SendAsync("Error", "Гостям запрещено писать в чат. Пожалуйста, войдите.");
                 return;
             }
 
-            // Проверяем бан
-            var isBanned = await _context.ChannelBans
-                .AnyAsync(b => b.ChannelId == channelId && 
-                              b.UserId == userId && 
-                              b.ExpiresAt > DateTime.UtcNow);
+            // Проверка бана
+            var banned = await _context.ChannelBans.AnyAsync(b =>
+                b.ChannelId == channelId &&
+                b.UserId == userId.Value &&
+                b.ExpiresAt > DateTime.UtcNow);
 
-            if (isBanned)
+            if (banned)
             {
-                await Clients.Caller.SendAsync("Error", "Вы забанены в этом канале");
+                await Clients.Caller.SendAsync("Error", "Вы заблокированы в этом чате");
                 return;
             }
 
-            // Проверяем спам
-            var recentMessages = await _context.ChatMessages
-                .Where(m => m.ChannelId == channelId && 
-                           m.UserId == userId && 
-                           m.Timestamp > DateTime.UtcNow.AddSeconds(-10))
-                .CountAsync();
-
-            if (recentMessages >= 5)
+            var user = await _context.Users.FindAsync(userId.Value);
+            if (user == null)
             {
-                await Clients.Caller.SendAsync("Error", "Слишком много сообщений. Подождите немного.");
+                await Clients.Caller.SendAsync("Error", "Пользователь не найден");
                 return;
             }
 
-            // Создаем сообщение
             var chatMessage = new ChatMessage
             {
                 ChannelId = channelId,
-                UserId = userId,
-                Message = message.Trim(),
-                Timestamp = DateTime.UtcNow,
-                IsSystemMessage = false
+                UserId = user.Id,
+                Message = message,
+                Timestamp = DateTime.UtcNow
             };
 
-            await _context.ChatMessages.AddAsync(chatMessage);
+            _context.ChatMessages.Add(chatMessage);
             await _context.SaveChangesAsync();
 
-            // Проверяем, модератор ли пользователь
-            var isModerator = await _context.ChannelModerators
-                .AnyAsync(m => m.ChannelId == channelId && m.UserId == userId);
-            var isStreamer = channel.UserId == userId;
+            var isModerator = await IsModerator(channelId, user.Id);
+            var isStreamer = await IsStreamer(channelId, user.Id);
 
-            // Отправляем всем в канале
-            await Clients.Group($"channel_{channelId}").SendAsync("ReceiveMessage", new
+            var response = new ChatMessageResponse
             {
                 Id = chatMessage.Id,
-                UserId = chatMessage.UserId,
+                ChannelId = channelId,
+                UserId = user.Id,
                 Username = user.Username,
-                AvatarUrl = user.AvatarUrl ?? "",
+                AvatarUrl = user.AvatarUrl,
                 Message = chatMessage.Message,
+                Color = user.ChatColor ?? "#9146FF",
                 Timestamp = chatMessage.Timestamp,
-                IsSystemMessage = chatMessage.IsSystemMessage,
-                Color = user.ChatColor ?? "#FFFFFF",
                 IsModerator = isModerator,
-                IsStreamer = isStreamer
-            });
+                IsStreamer = isStreamer,
+                IsSystemMessage = false,
+                IsDeleted = false
+            };
+
+            await Clients.Group($"channel_{channelId}").SendAsync("ReceiveMessage", response);
+        }
+
+        private async Task SendHistory(int channelId)
+        {
+            var messagesQuery = await _context.ChatMessages
+                .Where(m => m.ChannelId == channelId)
+                .OrderByDescending(m => m.Timestamp)
+                .Take(50)
+                .Include(m => m.User)
+                .ToListAsync();
+
+            // Сортировка по возрастанию времени
+            var messages = messagesQuery.OrderBy(m => m.Timestamp).ToList();
+
+            // Собираем все проверки в одном месте
+            var moderatorChecks = new Dictionary<int, bool>();
+            var streamerChecks = new Dictionary<int, bool>();
+            
+            // Проверяем права для всех пользователей в одном запросе
+            var userIds = messages
+                .Where(m => m.User != null)
+                .Select(m => m.User!.Id)
+                .Distinct()
+                .ToList();
+
+            foreach (var uid in userIds)
+            {
+                moderatorChecks[uid] = await IsModerator(channelId, uid);
+                streamerChecks[uid] = await IsStreamer(channelId, uid);
+            }
+
+            var response = messages.Select(m => new ChatMessageResponse
+            {
+                Id = m.Id,
+                ChannelId = m.ChannelId,
+                UserId = m.UserId,
+                Username = m.User != null ? m.User.Username : "System",
+                AvatarUrl = m.User != null ? m.User.AvatarUrl : null,
+                Message = m.IsDeleted ? "Сообщение удалено" : m.Message,
+                Color = m.User != null ? m.User.ChatColor ?? "#9146FF" : "#9146FF",
+                Timestamp = m.Timestamp,
+                IsSystemMessage = m.IsSystemMessage,
+                IsDeleted = m.IsDeleted,
+                IsModerator = m.User != null && moderatorChecks.ContainsKey(m.User.Id) && moderatorChecks[m.User.Id],
+                IsStreamer = m.User != null && streamerChecks.ContainsKey(m.User.Id) && streamerChecks[m.User.Id]
+            }).ToList();
+
+            await Clients.Caller.SendAsync("LoadHistory", response);
+        }
+
+        private async Task SendSystemMessage(int channelId, string text)
+        {
+            var systemMessage = new ChatMessageResponse
+            {
+                Id = 0,
+                ChannelId = channelId,
+                Username = "System",
+                Message = text,
+                Timestamp = DateTime.UtcNow,
+                IsSystemMessage = true,
+                IsDeleted = false,
+                Color = "#9146FF",
+                IsModerator = false,
+                IsStreamer = false
+            };
+
+            await Clients.Group($"channel_{channelId}").SendAsync("ReceiveMessage", systemMessage);
         }
 
         public async Task DeleteMessage(int messageId)
         {
-            var userId = GetCurrentUserId();
+            var userId = GetUserId();
+            if (userId == null)
+            {
+                await Clients.Caller.SendAsync("Error", "Неавторизованный доступ");
+                return;
+            }
+
             var message = await _context.ChatMessages
                 .Include(m => m.Channel)
                 .FirstOrDefaultAsync(m => m.Id == messageId);
 
-            if (message == null) return;
-
-            // Проверяем права
-            var isModerator = await IsUserModerator(message.ChannelId, userId);
-            var isOwner = message.Channel.UserId == userId;
-            var isMessageOwner = message.UserId == userId;
-
-            if (!isModerator && !isOwner && !isMessageOwner)
+            if (message == null)
             {
-                await Clients.Caller.SendAsync("Error", "Нет прав для удаления");
+                await Clients.Caller.SendAsync("Error", "Сообщение не найдено");
                 return;
             }
 
-            // Помечаем как удаленное
-            message.IsDeleted = true;
-            message.DeletedAt = DateTime.UtcNow;
-            message.DeletedByUserId = userId;
+            // Проверяем права: автор сообщения, модератор или стример канала
+            var isAuthor = message.UserId == userId;
+            var isModerator = await IsModerator(message.ChannelId, userId.Value);
+            var isStreamer = message.Channel?.UserId == userId;
 
+            if (!isAuthor && !isModerator && !isStreamer)
+            {
+                await Clients.Caller.SendAsync("Error", "Недостаточно прав");
+                return;
+            }
+
+            message.IsDeleted = true;
+            message.Message = "Сообщение удалено";
             await _context.SaveChangesAsync();
 
-            // Уведомляем всех в канале
             await Clients.Group($"channel_{message.ChannelId}").SendAsync("MessageDeleted", new
             {
                 MessageId = messageId,
@@ -205,37 +268,12 @@ namespace TwitchClone.Api.Hubs
             });
         }
 
-        public async Task LeaveChannel(int channelId)
+        public override async Task OnConnectedAsync()
         {
-            await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"channel_{channelId}");
-            
-            var userId = GetCurrentUserId();
-            if (userId == 0) return;
-
-            var user = await _context.Users.FindAsync(userId);
-            if (user == null) return;
-
-            // Системное сообщение о выходе
-            var leaveMessage = new ChatMessage
-            {
-                ChannelId = channelId,
-                UserId = null,
-                Message = $"{user.Username} покинул чат",
-                IsSystemMessage = true,
-                Timestamp = DateTime.UtcNow
-            };
-
-            await _context.ChatMessages.AddAsync(leaveMessage);
-            await _context.SaveChangesAsync();
+            await base.OnConnectedAsync();
         }
 
-        private async Task<bool> IsUserModerator(int channelId, int userId)
-        {
-            return await _context.ChannelModerators
-                .AnyAsync(m => m.ChannelId == channelId && m.UserId == userId);
-        }
-
-        public override async Task OnDisconnectedAsync(Exception exception)
+        public override async Task OnDisconnectedAsync(Exception? exception)
         {
             await base.OnDisconnectedAsync(exception);
         }

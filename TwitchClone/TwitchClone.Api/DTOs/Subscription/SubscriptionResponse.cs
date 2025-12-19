@@ -1,12 +1,11 @@
-    namespace TwitchClone.Api.DTOs.Subscription
+namespace TwitchClone.Api.DTOs.Subscriptions
+{
+    public class SubscriptionResponse
     {
-        public class SubscriptionResponse
-        {
-            public int ChannelId { get; set; }
-            public string ChannelName { get; set; } = null!;
-            public string? ChannelAvatarUrl { get; set; }
-            public DateTime SubscribedAt { get; set; }
-            public bool IsChannelLive { get; set; }
-            public int ChannelViewers { get; set; }
-        }
+        public int SubscriberId { get; set; }
+        public string SubscriberUsername { get; set; } = null!;
+        public int ChannelId { get; set; }
+        public string ChannelName { get; set; } = null!;
+        public DateTime SubscribedAt { get; set; }
     }
+}

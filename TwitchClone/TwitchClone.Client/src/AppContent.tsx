@@ -1,5 +1,5 @@
 // src/AppContent.tsx
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "./context/AuthContext";
 
@@ -9,8 +9,10 @@ import HomePage from "./pages/HomePage/HomePage";
 import AuthModal from "./components/Modal/AuthModal";
 import LoginModal from "./components/Modal/LoginModal";
 import Profile from "./pages/Profile/Profile";
-import Channel from "./pages/Channel/Channel";
 import "./AppContent.css";
+import Channel from "./pages/Channel/Channel";
+
+// Ленивая загрузка компонента Channel
 
 export default function AppContent() {
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
@@ -45,17 +47,21 @@ export default function AppContent() {
         <Sidebar />
         
         <div className="page-content">
-          <Routes>
-            <Route path="/" element={<HomePage />} />
-            <Route 
-              path="/profile" 
-              element={user ? <Profile /> : <Navigate to="/" replace />} 
-            />
-            <Route 
-              path="/channel/:nickname"  
-              element={<Channel />}     
-            />
-          </Routes>
+          <Suspense fallback={<div className="loading-container">Загрузка...</div>}>
+            <Routes>
+              <Route path="/" element={<HomePage />} />
+              <Route 
+                path="/profile" 
+                element={user ? <Profile /> : <Navigate to="/" replace />} 
+              />
+              <Route 
+                path="/channel/:nickname"  
+                element={<Channel />}     
+              />
+              {/* Добавьте fallback route для несуществующих страниц */}
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </Suspense>
         </div>
       </div>
 

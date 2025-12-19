@@ -20,112 +20,186 @@ export interface ChannelData {
   isLive: boolean;
   previewUrl?: string;
   subscribersCount: number;
+  userId?: number; // Добавим поле для ID пользователя
+  username?: string; 
 }
 
 // ===== Auth =====
 export const registerUser = async (data: RegisterData) => {
   try {
-    console.log("Register attempt:", data);
-    
     const res = await fetch(`${API_URL}/auth/register`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
     });
 
-    console.log("Register response status:", res.status);
-    
-    if (!res.ok) {
-      // Попробуем получить текст ошибки
-      const errorText = await res.text();
-      console.error("Register error response:", errorText);
-      
-      let errorMessage = "Ошибка регистрации";
-      try {
-        const errorData = JSON.parse(errorText);
-        errorMessage = errorData.message || errorMessage;
-        console.error("Register error details:", errorData);
-      } catch (e) {
-        console.error("Cannot parse error response:", errorText);
-      }
-      
+    const result = await res.json();
+
+    if (!res.ok || !result.success) {
       return {
         success: false,
-        message: errorMessage
+        message: result.message || "Ошибка регистрации"
       };
     }
 
-    const result = await res.json();
-    console.log("Register success:", result);
-    
+    // Теперь все данные лежат внутри result.data
     return {
       success: true,
-      token: result.token,
-      username: result.username,
-      email: result.email,
-      avatarUrl: result.avatarUrl,
-      id: result.id,
-      chatColor: result.chatColor
+      token: result.data.token,
+      username: result.data.username,
+      email: result.data.email,
+      avatarUrl: result.data.avatarUrl,
+      id: result.data.id,
+      chatColor: result.data.chatColor
     };
   } catch (error) {
-    console.error("Network error during registration:", error);
-    return {
-      success: false,
-      message: "Нет связи с сервером"
-    };
+    console.error(error);
+    return { success: false, message: "Нет связи с сервером" };
   }
 };
 
 export const loginUser = async (data: LoginData) => {
-  const res = await fetch(`${API_URL}/auth/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
-  return res.json();
+  try {
+    const res = await fetch(`${API_URL}/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    const result = await res.json();
+
+    if (!res.ok || !result.success) {
+      return { success: false, message: result.message || "Ошибка входа" };
+    }
+
+    return {
+      success: true,
+      token: result.data.token,
+      username: result.data.username,
+      email: result.data.email,
+      avatarUrl: result.data.avatarUrl,
+      id: result.data.id,
+      chatColor: result.data.chatColor
+    };
+  } catch (error) {
+    console.error(error);
+    return { success: false, message: "Нет связи с сервером" };
+  }
 };
 
-export const getMe = async (token: string): Promise<{
-  success: boolean;
-  username?: string;
-  email?: string;
-  avatarUrl?: string;
-  id?: number; // ← добавь это
-  chatColor?: string;
-}> => {
-  const response = await fetch("http://localhost:5172/api/auth/me", {
+export const getMe = async (token: string) => {
+  try {
+    const response = await fetch(`${API_URL}/auth/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const result = await response.json();
+
+    if (!response.ok || !result.success || !result.data) {
+      return { success: false };
+    }
+
+    const data = result.data;
+    return {
+      success: true,
+      username: data.username,
+      email: data.email,
+      avatarUrl: data.avatarUrl,
+      id: data.id,
+      chatColor: data.chatColor
+    };
+  } catch {
+    return { success: false };
+  }
+};
+
+// ===== Channel =====
+export const getChannelByNickname = async (nickname: string) => {
+  try {
+    console.log(`Fetching channel for nickname: ${nickname}`);
+    
+    // Используем тот же URL что и в бэкенде
+    const response = await fetch(`${API_URL}/channels/${nickname}`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+
+    console.log(`Response status: ${response.status}`);
+    
+    if (!response.ok) {
+      // Если 404, значит канал не найден
+      if (response.status === 404) {
+        throw new Error("Пользователь не найден");
+      }
+      
+      const errorText = await response.text();
+      console.error(`Error response: ${errorText}`);
+      throw new Error(`Ошибка ${response.status}: ${errorText}`);
+    }
+    
+    const result = await response.json();
+    console.log('API response:', result);
+    
+    // Обрабатываем стандартный формат ответа бэкенда
+    if (result.success === false) {
+      throw new Error(result.message || "Ошибка при загрузке канала");
+    }
+    
+    // Извлекаем данные
+    const data = result.data || result;
+    
+    return {
+      success: true,
+      id: data.id,
+      name: data.name,
+      avatarUrl: data.avatarUrl,
+      description: data.description,
+      viewers: data.viewers || 0,
+      isLive: data.isLive || false,
+      previewUrl: data.previewUrl,
+      subscribersCount: data.subscribersCount || 0,
+      userId: data.userId,
+      username: data.username || nickname,
+      message: result.message || "Success"
+    };
+  } catch (error: any) {
+    console.error('Get channel by nickname error:', error);
+    
+    if (error.message.includes("Пользователь не найден") || 
+        error.message.includes("404") || 
+        error.message.includes("not found")) {
+      throw new Error("Пользователь не найден");
+    }
+    
+    throw new Error(error.message || "Ошибка при загрузке канала");
+  }
+};
+export const getChannelById = async (channelId: number) => {
+  const response = await fetch(`${API_URL}/channels/${channelId}`, {
+    method: "GET",
     headers: {
-      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
     },
   });
 
+  const data = await response.json();
+  
   if (!response.ok) {
-    return { success: false };
+    throw new Error(data.message || "Ошибка при загрузке канала");
   }
 
-  const data = await response.json();
   return {
-    success: true,
-    username: data.username,
-    email: data.email,
-    avatarUrl: data.avatarUrl,
-    id: data.id, // ← добавь это
-    chatColor: data.chatColor
+    success: data.success || false,
+    id: data.data?.id || data.id,
+    name: data.data?.name || data.name,
+    avatarUrl: data.data?.avatarUrl || data.avatarUrl,
+    description: data.data?.description || data.description,
+    viewers: data.data?.viewers || data.viewers || 0,
+    isLive: data.data?.isLive || data.isLive || false,
+    previewUrl: data.data?.previewUrl || data.previewUrl,
+    subscribersCount: data.data?.subscribersCount || data.subscribersCount || 0,
+    userId: data.data?.userId || data.userId,
+    username: data.data?.username || data.username,
+    message: data.message
   };
-};
-// ===== Channel =====
-export const getChannelByNickname = async (nickname: string) => {
-  const res = await fetch(`${API_URL}/channel/${nickname}`);
-  return res.json() as Promise<{
-    subscribersCount: number;
-    success: boolean;
-    id: number;
-    name: string;
-    avatarUrl?: string;
-    description?: string;
-    viewers: number;
-    isLive: boolean;
-    previewUrl?: string;
-    message?: string;
-  }>;
 };

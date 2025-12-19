@@ -1,118 +1,112 @@
-
-using System.Security.Claims;
+// Controllers/AuthController.cs
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using TwitchClone.Api.Data;
-using TwitchClone.Api.DTOs;
+using TwitchClone.Api.DTOs.Auth;
 using TwitchClone.Api.Services;
-
 
 namespace TwitchClone.Api.Controllers
 {
-    [ApiController]
     [Route("api/auth")]
-    public class AuthController : ControllerBase
+    public class AuthController : BaseController
     {
-        private readonly AuthService _auth;
+        private readonly IAuthService _authService;
         private readonly JwtService _jwtService;
-        private readonly AppDbContext _db;
 
-
-        public AuthController(AuthService auth, JwtService jwtService, AppDbContext db)
+        public AuthController(IAuthService authService, JwtService jwtService)
         {
-            _auth = auth;
+            _authService = authService;
             _jwtService = jwtService;
-            _db = db;
         }
-
 
         [HttpPost("register")]
-        public async Task<IActionResult> Register([FromBody] RegisterRequest req)
-        {
-            if (!ModelState.IsValid)
-                return BadRequest(new { success = false, message = "Некорректные данные", errors = ModelState.Values.SelectMany(v => v.Errors) });
-
-
-            try
-            {
-                var user = await _auth.Register(req.Username, req.Email, req.Password);
-                var token = _jwtService.GenerateToken(user);
-
-
-                return Ok(new
-                {
-                    success = true,
-                    username = user.Username,
-                    email = user.Email,
-                    id = user.Id,
-                    avatarUrl = user.AvatarUrl,
-                    chatColor = user.ChatColor, // ← ВАЖНО!
-
-                    token
-                });
-            }
-            catch (ArgumentException ex)
-            {
-                return BadRequest(new { success = false, message = ex.Message });
-            }
-            catch (Exception)
-            {
-                return StatusCode(500, new { success = false, message = "Внутренняя ошибка сервера" });
-            }
-        }
-
-
-        [HttpPost("login")]
-        public async Task<IActionResult> Login([FromBody] LoginRequest req)
-        {
-            if (!ModelState.IsValid)
-                return BadRequest(new { success = false, message = "Некорректные данные", errors = ModelState.Values.SelectMany(v => v.Errors) });
-
-
-            var (user, token) = await _auth.Login(req.Username, req.Password);
-            if (user == null)
-                return Unauthorized(new { success = false, message = "Неверные имя пользователя или пароль" });
-
-
-            return Ok(new
-            {
-                success = true,
-                username = user.Username,
-                email = user.Email,
-                id = user.Id,
-                avatarUrl = user.AvatarUrl, // ← ВАЖНО!
-                chatColor = user.ChatColor,
-                token
-            });
-        }
-
-[HttpGet("me")]
-[Authorize] // Только для авторизованных
-public async Task<IActionResult> GetMe()
+public async Task<ActionResult<LoginResponse>> Register([FromBody] RegisterRequest request)
 {
-    // Получаем ID пользователя из токена
-    var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
-    if (userIdClaim == null || !int.TryParse(userIdClaim.Value, out var userId))
-    {
-        return Unauthorized(new { success = false, message = "Не авторизован" });
-    }
+    if (!ModelState.IsValid)
+        return ValidationError();
 
-    // Ищем пользователя в БД
-    var user = await _db.Users.FindAsync(userId);
-    if (user == null)
+    try
     {
-        return NotFound(new { success = false, message = "Пользователь не найден" });
-    }
+        var user = await _authService.Register(
+            request.Username, 
+            request.Email, 
+            request.Password);
+        
+        var token = _jwtService.GenerateToken(user);
+        var response = new LoginResponse
+        {
+            Id = user.Id,
+            Username = user.Username,
+            Email = user.Email,
+            Token = token,
+            AvatarUrl = user.AvatarUrl,
+            ChatColor = user.ChatColor,
+            IsAdmin = user.IsAdmin,
+            IsModerator = user.IsModerator
+        };
 
-    return Ok(new
+        return Success(response);
+    }
+    catch (ArgumentException ex)
     {
-        success = true,
-        id = user.Id,
-        username = user.Username,
-        email = user.Email,
-        avatarUrl = user.AvatarUrl,
-        chatColor = user.ChatColor
-    });
+        return Error(ex.Message);
+    }
+    catch (Exception)
+    {
+        return Error("Internal server error", 500);
+    }
 }
+
+[HttpPost("login")]
+public async Task<ActionResult<LoginResponse>> Login([FromBody] LoginRequest request)
+{
+    if (!ModelState.IsValid)
+        return ValidationError();
+
+    var (user, token) = await _authService.Login(request.Username, request.Password);
+
+    if (user == null || token == null)
+        return Error("Invalid username or password", 401);
+
+    var response = new LoginResponse
+    {
+        Id = user.Id,
+        Username = user.Username,
+        Email = user.Email,
+        Token = token,
+        AvatarUrl = user.AvatarUrl,
+        ChatColor = user.ChatColor,
+        IsAdmin = user.IsAdmin,
+        IsModerator = user.IsModerator
+    };
+
+    return Success(response);
+}
+
+        [Authorize]
+        [HttpGet("me")]
+        public async Task<ActionResult<UserResponse>> GetCurrentUser()
+        {
+            var userId = GetUserId();
+            if (!userId.HasValue)
+                return Error("Unauthorized", 401);
+
+            var user = await _authService.GetUserById(userId.Value);
+            if (user == null)
+                return Error("User not found", 404);
+
+            var response = new UserResponse
+            {
+                Id = user.Id,
+                Username = user.Username,
+                Email = user.Email,
+                AvatarUrl = user.AvatarUrl,
+                ChatColor = user.ChatColor,
+                CreatedAt = user.CreatedAt,
+                IsAdmin = user.IsAdmin,
+                IsModerator = user.IsModerator
+            };
+
+            return Success(response);
+        }
     }
 }

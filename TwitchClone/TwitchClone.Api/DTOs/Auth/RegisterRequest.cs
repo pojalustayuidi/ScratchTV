@@ -1,13 +1,17 @@
 using System.ComponentModel.DataAnnotations;
 
-public class RegisterRequest
+namespace TwitchClone.Api.DTOs.Auth
 {
-    [Required]
-    public required string Username { get; set; }
+    public class RegisterRequest
+    {
+        [Required(ErrorMessage = "Username обязателен")]
+        public string Username { get; set; } = string.Empty;
 
-    [Required]
-    public required string Email { get; set; }
+        [Required(ErrorMessage = "Email обязателен")]
+        [EmailAddress(ErrorMessage = "Некорректный email")]
+        public string Email { get; set; } = string.Empty;
 
-    [Required]
-    public required string Password { get; set; }
+        [Required(ErrorMessage = "Password обязателен")]
+        public string Password { get; set; } = string.Empty;
+    }
 }

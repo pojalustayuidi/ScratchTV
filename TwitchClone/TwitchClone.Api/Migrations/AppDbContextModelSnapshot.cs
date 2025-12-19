@@ -22,7 +22,81 @@ namespace TwitchClone.Api.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("ChannelBan", b =>
+            modelBuilder.Entity("TwitchClone.Api.Models.Channel", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP AT TIME ZONE 'UTC'");
+
+                    b.Property<string>("CurrentSessionId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<bool>("IsLive")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("LastPingAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP AT TIME ZONE 'UTC'");
+
+                    b.Property<DateTime?>("LastStreamEndedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<int>("PeakViewers")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("PreviewUrl")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<DateTime?>("SessionStartedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("SubscribersCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TotalStreamTime")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Viewers")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IsLive");
+
+                    b.HasIndex("LastPingAt");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.HasIndex("UserId")
+                        .IsUnique();
+
+                    b.ToTable("Channels");
+                });
+
+            modelBuilder.Entity("TwitchClone.Domain.Models.ChannelBan", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -34,7 +108,9 @@ namespace TwitchClone.Api.Migrations
                         .HasColumnType("integer");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP AT TIME ZONE 'UTC'");
 
                     b.Property<DateTime>("ExpiresAt")
                         .HasColumnType("timestamp with time zone");
@@ -44,8 +120,8 @@ namespace TwitchClone.Api.Migrations
 
                     b.Property<string>("Reason")
                         .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
 
                     b.Property<int>("UserId")
                         .HasColumnType("integer");
@@ -63,7 +139,7 @@ namespace TwitchClone.Api.Migrations
                     b.ToTable("ChannelBans");
                 });
 
-            modelBuilder.Entity("ChannelModerator", b =>
+            modelBuilder.Entity("TwitchClone.Domain.Models.ChannelModerator", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -72,7 +148,9 @@ namespace TwitchClone.Api.Migrations
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
                     b.Property<DateTime>("AddedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP AT TIME ZONE 'UTC'");
 
                     b.Property<int>("AddedByUserId")
                         .HasColumnType("integer");
@@ -95,70 +173,7 @@ namespace TwitchClone.Api.Migrations
                     b.ToTable("ChannelModerators");
                 });
 
-            modelBuilder.Entity("TwitchClone.Api.Models.Channel", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("CurrentSessionId")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<bool>("IsLive")
-                        .HasColumnType("boolean");
-
-                    b.Property<DateTime?>("LastPingAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime?>("LastStreamEndedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<int>("PeakViewers")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("PreviewUrl")
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)");
-
-                    b.Property<DateTime?>("SessionStartedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("TotalStreamTime")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("UserId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("Viewers")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Name")
-                        .IsUnique();
-
-                    b.HasIndex("UserId")
-                        .IsUnique();
-
-                    b.ToTable("Channels");
-                });
-
-            modelBuilder.Entity("TwitchClone.Api.Models.ChatMessage", b =>
+            modelBuilder.Entity("TwitchClone.Domain.Models.ChatMessage", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -187,7 +202,9 @@ namespace TwitchClone.Api.Migrations
                         .HasColumnType("character varying(500)");
 
                     b.Property<DateTime>("Timestamp")
-                        .HasColumnType("timestamp with time zone");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP AT TIME ZONE 'UTC'");
 
                     b.Property<int?>("UserId")
                         .HasColumnType("integer");
@@ -207,7 +224,7 @@ namespace TwitchClone.Api.Migrations
                     b.ToTable("ChatMessages");
                 });
 
-            modelBuilder.Entity("TwitchClone.Api.Models.Subscription", b =>
+            modelBuilder.Entity("TwitchClone.Domain.Models.Subscription", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -219,19 +236,16 @@ namespace TwitchClone.Api.Migrations
                         .HasColumnType("integer");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP AT TIME ZONE 'UTC'");
 
                     b.Property<int>("SubscriberId")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("UserId")
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
 
                     b.HasIndex("ChannelId");
-
-                    b.HasIndex("UserId");
 
                     b.HasIndex("SubscriberId", "ChannelId")
                         .IsUnique();
@@ -239,7 +253,7 @@ namespace TwitchClone.Api.Migrations
                     b.ToTable("Subscriptions");
                 });
 
-            modelBuilder.Entity("TwitchClone.Api.Models.User", b =>
+            modelBuilder.Entity("TwitchClone.Domain.Models.User", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -248,31 +262,41 @@ namespace TwitchClone.Api.Migrations
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
                     b.Property<string>("AvatarUrl")
-                        .HasColumnType("text");
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
 
                     b.Property<string>("Bio")
-                        .HasColumnType("text");
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
 
                     b.Property<string>("ChatColor")
                         .IsRequired()
-                        .ValueGeneratedOnAdd()
                         .HasMaxLength(7)
-                        .HasColumnType("character varying(7)")
-                        .HasDefaultValue("#FFFFFF");
+                        .HasColumnType("character varying(7)");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP AT TIME ZONE 'UTC'");
 
                     b.Property<string>("Email")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<bool>("IsAdmin")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsModerator")
+                        .HasColumnType("boolean");
 
                     b.Property<bool>("IsVerified")
                         .HasColumnType("boolean");
 
                     b.Property<string>("PasswordHash")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
 
                     b.Property<string>("Username")
                         .IsRequired()
@@ -290,7 +314,18 @@ namespace TwitchClone.Api.Migrations
                     b.ToTable("Users");
                 });
 
-            modelBuilder.Entity("ChannelBan", b =>
+            modelBuilder.Entity("TwitchClone.Api.Models.Channel", b =>
+                {
+                    b.HasOne("TwitchClone.Domain.Models.User", "User")
+                        .WithOne()
+                        .HasForeignKey("TwitchClone.Api.Models.Channel", "UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("TwitchClone.Domain.Models.ChannelBan", b =>
                 {
                     b.HasOne("TwitchClone.Api.Models.Channel", "Channel")
                         .WithMany()
@@ -298,13 +333,13 @@ namespace TwitchClone.Api.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("TwitchClone.Api.Models.User", "Moderator")
+                    b.HasOne("TwitchClone.Domain.Models.User", "Moderator")
                         .WithMany()
                         .HasForeignKey("ModeratorId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("TwitchClone.Api.Models.User", "User")
+                    b.HasOne("TwitchClone.Domain.Models.User", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -317,9 +352,9 @@ namespace TwitchClone.Api.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("ChannelModerator", b =>
+            modelBuilder.Entity("TwitchClone.Domain.Models.ChannelModerator", b =>
                 {
-                    b.HasOne("TwitchClone.Api.Models.User", "AddedByUser")
+                    b.HasOne("TwitchClone.Domain.Models.User", "AddedByUser")
                         .WithMany()
                         .HasForeignKey("AddedByUserId")
                         .OnDelete(DeleteBehavior.Restrict)
@@ -331,7 +366,7 @@ namespace TwitchClone.Api.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("TwitchClone.Api.Models.User", "User")
+                    b.HasOne("TwitchClone.Domain.Models.User", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -344,18 +379,7 @@ namespace TwitchClone.Api.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("TwitchClone.Api.Models.Channel", b =>
-                {
-                    b.HasOne("TwitchClone.Api.Models.User", "User")
-                        .WithOne("Channel")
-                        .HasForeignKey("TwitchClone.Api.Models.Channel", "UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("TwitchClone.Api.Models.ChatMessage", b =>
+            modelBuilder.Entity("TwitchClone.Domain.Models.ChatMessage", b =>
                 {
                     b.HasOne("TwitchClone.Api.Models.Channel", "Channel")
                         .WithMany()
@@ -363,12 +387,12 @@ namespace TwitchClone.Api.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("TwitchClone.Api.Models.User", "DeletedByUser")
+                    b.HasOne("TwitchClone.Domain.Models.User", "DeletedByUser")
                         .WithMany()
                         .HasForeignKey("DeletedByUserId")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.HasOne("TwitchClone.Api.Models.User", "User")
+                    b.HasOne("TwitchClone.Domain.Models.User", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.SetNull);
@@ -380,7 +404,7 @@ namespace TwitchClone.Api.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("TwitchClone.Api.Models.Subscription", b =>
+            modelBuilder.Entity("TwitchClone.Domain.Models.Subscription", b =>
                 {
                     b.HasOne("TwitchClone.Api.Models.Channel", "Channel")
                         .WithMany()
@@ -388,26 +412,15 @@ namespace TwitchClone.Api.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("TwitchClone.Api.Models.User", "Subscriber")
+                    b.HasOne("TwitchClone.Domain.Models.User", "Subscriber")
                         .WithMany()
                         .HasForeignKey("SubscriberId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
-
-                    b.HasOne("TwitchClone.Api.Models.User", null)
-                        .WithMany("Subscriptions")
-                        .HasForeignKey("UserId");
 
                     b.Navigation("Channel");
 
                     b.Navigation("Subscriber");
-                });
-
-            modelBuilder.Entity("TwitchClone.Api.Models.User", b =>
-                {
-                    b.Navigation("Channel");
-
-                    b.Navigation("Subscriptions");
                 });
 #pragma warning restore 612, 618
         }

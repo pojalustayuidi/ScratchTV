@@ -1,3 +1,5 @@
+using System;
+
 namespace TwitchClone.Api.DTOs.Chat
 {
     public class ChannelBanResponse

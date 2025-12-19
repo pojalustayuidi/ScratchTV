@@ -7,6 +7,8 @@ using TwitchClone.Api.Services;
 using Microsoft.OpenApi.Models;
 using Microsoft.AspNetCore.Mvc;
 using TwitchClone.Api.Hubs;
+using TwitchClone.Api.Services.Implementations;
+using TwitchClone.Api.BackgroundServices;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -53,9 +55,9 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 
                 // Для всех SignalR hubs
                 if (!string.IsNullOrEmpty(accessToken) && 
-                    (path.StartsWithSegments("/chathub") || 
-                     path.StartsWithSegments("/streamhub") ||
-                     path.StartsWithSegments("/sfuhub")))
+                    (path.StartsWithSegments("/hubs/chat") || 
+                     path.StartsWithSegments("/hubs/stream") ||
+                     path.StartsWithSegments("/hubs/sfu")))
                 {
                     context.Token = accessToken;
                 }
@@ -64,20 +66,28 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
-// === Services ===
-builder.Services.AddScoped<AuthService>();
-builder.Services.AddScoped<UserService>();
-builder.Services.AddScoped<ChannelService>();
-builder.Services.AddSingleton<JwtService>();
-builder.Services.AddScoped<SubscriptionService>();
-builder.Services.AddScoped<IChannelRepository, ChannelRepository>();
+// === Services Registration (ИСПРАВЛЕНО - используем интерфейсы) ===
+
+// Core Services
+builder.Services.AddScoped<JwtService>();
+
+// Auth Services
+builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IUserService, UserService>();
+
+// Channel & Stream Services
+builder.Services.AddScoped<IChannelService, ChannelService>();
 builder.Services.AddScoped<IStreamService, StreamService>();
 
-// === Viewer Tracker Service ===
+// Subscription Services
+builder.Services.AddScoped<ISubscriptionService, SubscriptionService>();
+
+// Viewer Tracker Services
 builder.Services.AddScoped<IViewerTrackerService, ViewerTrackerService>();
 
-// === SFU Sync Service ===
-builder.Services.AddSingleton<SfuSyncService>();
+// SFU Services
+builder.Services.AddScoped<ISfuSyncService, SfuSyncService>();
+builder.Services.AddHostedService<SfuHeartbeatService>();
 
 // === SignalR ===
 builder.Services.AddSignalR()
@@ -89,9 +99,8 @@ builder.Services.AddSignalR()
 // === HttpContext Accessor ===
 builder.Services.AddHttpContextAccessor();
 
-// === Background Services (Упрощаем, убираем проблемные) ===
+// === Background Services ===
 builder.Services.AddHostedService<StreamSessionCleanupService>();
-// Убираем ViewerConnectionCleanupService и SfuHeartbeatService пока что
 
 // === Controllers ===
 builder.Services.AddControllers()
@@ -121,9 +130,10 @@ builder.Services.AddCors(opt =>
     opt.AddPolicy("DevPolicy", policy =>
     {
         policy.WithOrigins(
-            "http://localhost:5173",     // Frontend
+            "http://localhost:5173",     // Frontend (Vite/React)
             "http://localhost:3000",     // Node.js SFU
-            "http://localhost:3001"      // Node.js dev сервер
+            "http://localhost:3001",     // Node.js dev сервер
+            "http://localhost:8080"      // Дополнительный порт
         )
         .AllowAnyHeader()
         .AllowAnyMethod()
@@ -138,17 +148,18 @@ builder.Services.AddSwaggerGen(c =>
     c.SwaggerDoc("v1", new OpenApiInfo
     {
         Title = "TwitchClone API",
-        Version = "v1"
+        Version = "v1",
+        Description = "API для стриминговой платформы"
     });
     
     // Добавляем поддержку JWT в Swagger
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
-        Description = "JWT Authorization header using the Bearer scheme",
+        Description = "JWT Authorization header using the Bearer scheme. Example: 'Bearer {token}'",
         Name = "Authorization",
         In = ParameterLocation.Header,
-        Type = SecuritySchemeType.Http,
-        Scheme = "bearer"
+        Type = SecuritySchemeType.ApiKey,
+        Scheme = "Bearer"
     });
     
     c.AddSecurityRequirement(new OpenApiSecurityRequirement
@@ -165,18 +176,29 @@ builder.Services.AddSwaggerGen(c =>
             Array.Empty<string>()
         }
     });
+    
+    // Включаем XML комментарии если есть
+    var xmlFile = $"{System.Reflection.Assembly.GetExecutingAssembly().GetName().Name}.xml";
+    var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+    if (File.Exists(xmlPath))
+    {
+        c.IncludeXmlComments(xmlPath);
+    }
 });
 
 // === HttpClient для SFU ===
-builder.Services.AddHttpClient("SfuClient", client =>
+builder.Services.AddHttpClient("SFU", client =>
 {
     client.BaseAddress = new Uri("http://localhost:3000");
-    client.Timeout = TimeSpan.FromSeconds(10);
+    client.Timeout = TimeSpan.FromSeconds(30);
+    client.DefaultRequestHeaders.Add("Accept", "application/json");
 });
 
 var app = builder.Build();
 
 // === Middleware Pipeline ===
+
+// CORS должен быть первым
 app.UseCors("DevPolicy");
 
 if (app.Environment.IsDevelopment())
@@ -185,28 +207,48 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI(c =>
     {
         c.SwaggerEndpoint("/swagger/v1/swagger.json", "TwitchClone API v1");
-        c.RoutePrefix = string.Empty;
+        c.RoutePrefix = "swagger";
+        c.DisplayRequestDuration();
     });
 }
 
+app.UseStaticFiles();
+
 app.UseAuthentication();
 app.UseAuthorization();
-
-// Serve wwwroot
-var wwwroot = Path.Combine(builder.Environment.ContentRootPath, "wwwroot");
-if (!Directory.Exists(wwwroot))
-{
-    Directory.CreateDirectory(wwwroot);
-}
-
-app.UseStaticFiles();
 
 // === Endpoint Mapping ===
 app.MapControllers();
 
 // SignalR Hubs
-app.MapHub<ChatHub>("/chathub");
-app.MapHub<StreamHub>("/streamhub");
-app.MapHub<SfuHub>("/sfuhub");
+app.MapHub<ChatHub>("/hubs/chat");
+app.MapHub<StreamHub>("/hubs/stream");
+app.MapHub<SfuHub>("/hubs/sfu");
+
+// Health check endpoint
+app.MapGet("/health", () => new 
+{ 
+    status = "healthy", 
+    timestamp = DateTime.UtcNow,
+    environment = app.Environment.EnvironmentName 
+});
+
+// === Database Migration ===
+try
+{
+    using var scope = app.Services.CreateScope();
+    var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    
+    // Автоматическое применение миграций
+    if (dbContext.Database.GetPendingMigrations().Any())
+    {
+        dbContext.Database.Migrate();
+        Console.WriteLine("Миграции применены успешно");
+    }
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"Ошибка при применении миграций: {ex.Message}");
+}
 
 app.Run();

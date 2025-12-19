@@ -9,6 +9,7 @@ namespace TwitchClone.Api.DTOs.Chat
         [MaxLength(500, ErrorMessage = "Максимум 500 символов")]
         public string Message { get; set; } = string.Empty;
 
+        [Required]
         public int ChannelId { get; set; }
     }
 }

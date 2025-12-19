@@ -1,3 +1,4 @@
+
 namespace TwitchClone.Api.DTOs.Chat
 {
     public class ChannelModeratorResponse

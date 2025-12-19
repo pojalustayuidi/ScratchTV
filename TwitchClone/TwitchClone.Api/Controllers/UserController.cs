@@ -1,74 +1,69 @@
-
-
+// Controllers/UserController.cs
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using System.Security.Claims;
+using TwitchClone.Api.DTOs.Auth;
 using TwitchClone.Api.Services;
 
 namespace TwitchClone.Api.Controllers
 {
-    [ApiController]
-    [Route("api/user")]
+    [Route("api/users")]
     [Authorize]
-    public class UserController : ControllerBase
+    public class UserController : BaseController
     {
-        private readonly UserService _users;
-        private readonly SubscriptionService _subs;
+        private readonly IUserService _userService;
+        private readonly ILogger<UserController> _logger; // Добавили ILogger
 
-        public UserController(UserService users, SubscriptionService subs)
+        public UserController(IUserService userService, ILogger<UserController> logger)
         {
-            _users = users;
-            _subs = subs;
-        }
-
-        private int? GetUserIdOrNull()
-        {
-            var id = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (int.TryParse(id, out var uid)) return uid;
-            return null;
+            _userService = userService;
+            _logger = logger;
         }
 
         [HttpGet("me")]
-        [Authorize]
-        public async Task<IActionResult> GetMyProfile()
+        public async Task<ActionResult<object>> GetProfile()
         {
-            var userId = GetUserIdOrNull();
-            if (userId == null) return Unauthorized(new { success = false, message = "Не авторизован" });
+            var userId = GetUserId();
+            if (!userId.HasValue)
+                return Error("Unauthorized", 401);
 
-            var user = await _users.GetById(userId.Value);
+            var user = await _userService.GetById(userId.Value);
             if (user == null)
-                return NotFound(new { success = false, message = "Пользователь не найден" });
+                return Error("User not found", 404);
 
-            return Ok(new
+            return Success(new
             {
-                success = true,
-                id = user.Id,
-                username = user.Username,
-                email = user.Email,
-                avatarUrl = user.AvatarUrl,
-                chatColor = user.ChatColor
+                user.Id,
+                user.Username,
+                user.Email,
+                user.AvatarUrl,
+                user.ChatColor,
+                user.IsAdmin,
+                user.IsModerator,
+                user.CreatedAt
             });
         }
 
-        [HttpGet("me/subscriptions")]
-        public async Task<IActionResult> MySubscriptions()
+        [HttpPut("me/profile")]
+        public async Task<ActionResult> UpdateProfile([FromBody] UserProfileUpdateDto dto)
         {
-            var userId = GetUserIdOrNull();
-            if (userId == null) return Unauthorized(new { success = false, message = "Не авторизован" });
+            var userId = GetUserId();
+            if (!userId.HasValue)
+                return Error("Unauthorized", 401);
 
-            var channels = await _subs.GetUserSubscriptions(userId.Value);
-
-            return Ok(new
+            try
             {
-                success = true,
-                count = channels.Count,
-                subscriptions = channels.Select(x => new
-                {
-                    id = x.Id,
-                    username = x.User?.Username,
-                    avatarUrl = x.User?.AvatarUrl
-                })
-            });
+                await _userService.UpdateProfile(userId.Value, dto);
+                return Success();
+            }
+            catch (ArgumentException ex)
+            {
+                return Error(ex.Message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating profile"); // Исправленная строка
+                return Error("Internal server error", 500);
+            }
         }
     }
 }

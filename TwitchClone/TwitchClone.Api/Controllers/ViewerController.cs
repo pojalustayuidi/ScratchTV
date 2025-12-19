@@ -1,149 +1,144 @@
 // Controllers/ViewerController.cs
 using Microsoft.AspNetCore.Mvc;
+using TwitchClone.Api.DTOs.Viewer;
 using TwitchClone.Api.Services;
-using TwitchClone.Api.DTOs;
 
 namespace TwitchClone.Api.Controllers
 {
-    [ApiController]
     [Route("api/viewers")]
-    public class ViewerController : ControllerBase
+    public class ViewerController : BaseController
     {
-        private readonly IViewerTrackerService _viewerTracker;
-        private readonly ChannelService _channelService;
+        private readonly IViewerTrackerService _viewerTrackerService;
+        private readonly IChannelService _channelService;
         private readonly ILogger<ViewerController> _logger;
 
         public ViewerController(
-            IViewerTrackerService viewerTracker,
-            ChannelService channelService,
+            IViewerTrackerService viewerTrackerService,
+            IChannelService channelService,
             ILogger<ViewerController> logger)
         {
-            _viewerTracker = viewerTracker;
+            _viewerTrackerService = viewerTrackerService;
             _channelService = channelService;
             _logger = logger;
         }
 
-        [HttpGet("channel/{channelId}/count")]
-        public async Task<IActionResult> GetViewersCount(int channelId)
+        [HttpGet("channels/{channelId:int}/count")]
+        public async Task<ActionResult<object>> GetViewerCount(int channelId)
         {
             try
             {
-                var count = _viewerTracker.GetViewerCount(channelId);
-                var uniqueCount = _viewerTracker.GetUniqueUserCount(channelId);
+                var count = _viewerTrackerService.GetViewerCount(channelId);
+                var uniqueCount = _viewerTrackerService.GetUniqueUserCount(channelId);
                 var isLive = await _channelService.IsChannelLive(channelId);
 
-                return Ok(new
+                return Success(new
                 {
-                    success = true,
                     viewersCount = count,
                     uniqueViewers = uniqueCount,
-                    isLive = isLive,
+                    isLive,
                     timestamp = DateTime.UtcNow
                 });
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Error getting viewers count for channel {channelId}");
-                return StatusCode(500, new { success = false, message = "Internal server error" });
+                _logger.LogError(ex, "Error getting viewers count for channel {ChannelId}", channelId);
+                return Error("Internal server error", 500);
             }
         }
 
-        [HttpPost("channel/{channelId}/connect")]
-        public async Task<IActionResult> ViewerConnected(int channelId, [FromQuery] string connectionId, [FromQuery] int? userId = null)
+        [HttpPost("channels/{channelId:int}/connect")]
+        public async Task<ActionResult> ConnectViewer(
+            int channelId,
+            [FromQuery] string connectionId,
+            [FromQuery] int? userId = null)
         {
             if (string.IsNullOrEmpty(connectionId))
-                return BadRequest(new { success = false, message = "connectionId is required" });
+                return Error("connectionId is required");
 
-            var result = await _viewerTracker.AddViewer(channelId, connectionId, userId);
-
-            if (!result)
-                return StatusCode(500, new { success = false, message = "Failed to add viewer" });
-
-            return Ok(new { success = true });
-
+            var connected = await _viewerTrackerService.AddViewer(channelId, connectionId, userId);
+            
+            return connected 
+                ? Success() 
+                : Error("Failed to add viewer", 500);
         }
 
-
-        [HttpPost("channel/{channelId}/disconnect")]
-        public async Task<IActionResult> ViewerDisconnected(int channelId, [FromQuery] string connectionId)
+        [HttpPost("channels/{channelId:int}/disconnect")]
+        public async Task<ActionResult> DisconnectViewer(
+            int channelId,
+            [FromQuery] string connectionId)
         {
             if (string.IsNullOrEmpty(connectionId))
-                return BadRequest(new { success = false, message = "connectionId is required" });
+                return Error("connectionId is required");
 
-            var result = await _viewerTracker.RemoveViewer(connectionId);
-
-            if (!result)
-                return StatusCode(500, new { success = false, message = "Failed to remove viewer" });
-
-            return Ok(new { success = true });
+            var disconnected = await _viewerTrackerService.RemoveViewer(connectionId);
+            
+            return disconnected 
+                ? Success() 
+                : Error("Failed to remove viewer", 500);
         }
 
-
-
-
-        [HttpPost("channel/{channelId}/reset")]
-        public async Task<IActionResult> ResetViewers(int channelId)
+        [HttpPost("channels/{channelId:int}/reset")]
+        public async Task<ActionResult> ResetViewers(int channelId)
         {
             try
             {
-                await _viewerTracker.ClearChannelViewers(channelId);
+                await _viewerTrackerService.ClearChannelViewers(channelId);
                 await _channelService.ResetViewers(channelId);
-                _logger.LogInformation($"Viewers reset for channel {channelId}");
-                return Ok(new { success = true, message = "Viewers reset successfully" });
+                
+                _logger.LogInformation("Viewers reset for channel {ChannelId}", channelId);
+                return Success();
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Error resetting viewers for channel {channelId}");
-                return StatusCode(500, new { success = false, message = "Internal server error" });
+                _logger.LogError(ex, "Error resetting viewers for channel {ChannelId}", channelId);
+                return Error("Internal server error", 500);
             }
         }
 
-        [HttpGet("channel/{channelId}/stats")]
-        public IActionResult GetViewerStats(int channelId)
+        [HttpGet("channels/{channelId:int}/stats")]
+        public ActionResult<ViewerStatsResponse> GetStats(int channelId)
         {
             try
             {
-                var stats = _viewerTracker.GetChannelStats(channelId);
-                return Ok(new { success = true, data = stats });
+                var stats = _viewerTrackerService.GetChannelStats(channelId);
+                return Success(stats);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Error getting viewer stats for channel {channelId}");
-                return StatusCode(500, new { success = false, message = "Internal server error" });
+                _logger.LogError(ex, "Error getting viewer stats for channel {ChannelId}", channelId);
+                return Error("Internal server error", 500);
             }
         }
 
-        [HttpPost("sync/{channelId}")]
-        public async Task<IActionResult> SyncViewerCount(int channelId)
+        [HttpPost("sync/{channelId:int}")]
+        public async Task<ActionResult<object>> SyncViewerCount(int channelId)
         {
             try
             {
-                var liveCount = _viewerTracker.GetViewerCount(channelId);
-                var dbCount = await _viewerTracker.UpdateViewerCountInDatabase(channelId);
+                var liveCount = _viewerTrackerService.GetViewerCount(channelId);
+                var dbCount = await _viewerTrackerService.UpdateViewerCountInDatabase(channelId);
 
-                return Ok(new
+                return Success(new
                 {
-                    success = true,
-                    liveCount = liveCount,
-                    dbCount = dbCount,
+                    liveCount,
+                    dbCount,
                     synced = liveCount == dbCount
                 });
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Error syncing viewer count for channel {channelId}");
-                return StatusCode(500, new { success = false, message = "Internal server error" });
+                _logger.LogError(ex, "Error syncing viewer count for channel {ChannelId}", channelId);
+                return Error("Internal server error", 500);
             }
         }
 
         [HttpGet("health")]
-        public IActionResult HealthCheck()
+        public ActionResult<object> HealthCheck()
         {
             try
             {
-                return Ok(new
+                return Success(new
                 {
-                    success = true,
                     status = "healthy",
                     timestamp = DateTime.UtcNow,
                     message = "Viewer tracker service is running"
@@ -152,7 +147,7 @@ namespace TwitchClone.Api.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Health check failed");
-                return StatusCode(500, new { success = false, message = "Service unhealthy" });
+                return Error("Service unhealthy", 500);
             }
         }
     }

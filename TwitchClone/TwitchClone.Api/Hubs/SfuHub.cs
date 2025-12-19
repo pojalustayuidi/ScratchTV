@@ -1,3 +1,4 @@
+// Hubs/SfuHub.cs
 using Microsoft.AspNetCore.SignalR;
 using TwitchClone.Api.Services;
 
@@ -5,49 +6,46 @@ namespace TwitchClone.Api.Hubs
 {
     public class SfuHub : Hub
     {
-        private readonly IViewerTrackerService _viewerTracker;
-        private readonly ChannelService _channelService;
-        private readonly SfuSyncService _sfuSync;
+        private readonly IViewerTrackerService _viewerTrackerService;
+        private readonly IChannelService _channelService;
+        private readonly ISfuSyncService _sfuSyncService;
         private readonly ILogger<SfuHub> _logger;
         
         public SfuHub(
-            IViewerTrackerService viewerTracker,
-            ChannelService channelService,
-            SfuSyncService sfuSync,
+            IViewerTrackerService viewerTrackerService,
+            IChannelService channelService,
+            ISfuSyncService sfuSyncService,
             ILogger<SfuHub> logger)
         {
-            _viewerTracker = viewerTracker;
+            _viewerTrackerService = viewerTrackerService;
             _channelService = channelService;
-            _sfuSync = sfuSync;
+            _sfuSyncService = sfuSyncService;
             _logger = logger;
         }
         
-        // SFU подключается к ASP.NET
         public override async Task OnConnectedAsync()
         {
-            _logger.LogInformation($"SFU Node connected: {Context.ConnectionId}");
+            _logger.LogInformation("SFU Node connected: {ConnectionId}", Context.ConnectionId);
             await base.OnConnectedAsync();
         }
         
         public override async Task OnDisconnectedAsync(Exception? exception)
         {
-            _logger.LogInformation($"SFU Node disconnected: {Context.ConnectionId}");
+            _logger.LogInformation("SFU Node disconnected: {ConnectionId}", Context.ConnectionId);
             await base.OnDisconnectedAsync(exception);
         }
         
-        // SFU уведомляет о подключении зрителя к видео
         public async Task ViewerConnectedToVideo(int channelId, string connectionId, int? userId = null)
         {
             try
             {
-                // Добавляем зрителя с префиксом sfu_
                 var sfuConnectionId = $"sfu_{connectionId}";
-                await _viewerTracker.AddViewer(channelId, sfuConnectionId, userId);
+                await _viewerTrackerService.AddViewer(channelId, sfuConnectionId, userId);
                 
-                _logger.LogDebug($"SFU viewer connected: channel={channelId}, conn={connectionId}");
+                _logger.LogDebug("SFU viewer connected: channel={ChannelId}, conn={ConnectionId}", 
+                    channelId, connectionId);
                 
-                // Уведомляем всех клиентов
-                var count = _viewerTracker.GetViewerCount(channelId);
+                var count = _viewerTrackerService.GetViewerCount(channelId);
                 await Clients.Group($"channel_{channelId}").SendAsync("ViewersUpdated", new
                 {
                     ChannelId = channelId,
@@ -58,22 +56,21 @@ namespace TwitchClone.Api.Hubs
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Error in ViewerConnectedToVideo for channel {channelId}");
+                _logger.LogError(ex, "Error in ViewerConnectedToVideo for channel {ChannelId}", channelId);
             }
         }
         
-        // SFU уведомляет об отключении зрителя от видео
         public async Task ViewerDisconnectedFromVideo(int channelId, string connectionId)
         {
             try
             {
                 var sfuConnectionId = $"sfu_{connectionId}";
-                await _viewerTracker.RemoveViewer(sfuConnectionId);
+                await _viewerTrackerService.RemoveViewer(sfuConnectionId);
                 
-                _logger.LogDebug($"SFU viewer disconnected: channel={channelId}, conn={connectionId}");
+                _logger.LogDebug("SFU viewer disconnected: channel={ChannelId}, conn={ConnectionId}", 
+                    channelId, connectionId);
                 
-                // Уведомляем всех клиентов
-                var count = _viewerTracker.GetViewerCount(channelId);
+                var count = _viewerTrackerService.GetViewerCount(channelId);
                 await Clients.Group($"channel_{channelId}").SendAsync("ViewersUpdated", new
                 {
                     ChannelId = channelId,
@@ -84,26 +81,23 @@ namespace TwitchClone.Api.Hubs
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Error in ViewerDisconnectedFromVideo for channel {channelId}");
+                _logger.LogError(ex, "Error in ViewerDisconnectedFromVideo for channel {ChannelId}", channelId);
             }
         }
         
-        // SFU уведомляет о начале трансляции
         public async Task StreamStartedInSfu(int channelId, string sessionId)
         {
             try
             {
-                // Проверяем, есть ли уже сессия в ASP.NET
                 var (isActive, existingSession) = await _channelService.GetActiveSession(channelId);
                 
                 if (!isActive || existingSession != sessionId)
                 {
-                    // Обновляем сессию в базе
                     await _channelService.StartStreamSession(channelId, sessionId);
                     
-                    _logger.LogInformation($"SFU stream started: channel={channelId}, session={sessionId}");
+                    _logger.LogInformation("SFU stream started: channel={ChannelId}, session={SessionId}", 
+                        channelId, sessionId);
                     
-                    // Уведомляем всех клиентов
                     await Clients.Group($"channel_{channelId}").SendAsync("StreamStarted", new
                     {
                         ChannelId = channelId,
@@ -115,23 +109,20 @@ namespace TwitchClone.Api.Hubs
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Error in StreamStartedInSfu for channel {channelId}");
+                _logger.LogError(ex, "Error in StreamStartedInSfu for channel {ChannelId}", channelId);
             }
         }
         
-        // SFU уведомляет о завершении трансляции
         public async Task StreamStoppedInSfu(int channelId, string sessionId)
         {
             try
             {
                 await _channelService.StopStreamSession(channelId, sessionId);
+                await _viewerTrackerService.ClearChannelViewers(channelId);
                 
-                // Очищаем зрителей из трекера
-                await _viewerTracker.ClearChannelViewers(channelId);
+                _logger.LogInformation("SFU stream stopped: channel={ChannelId}, session={SessionId}", 
+                    channelId, sessionId);
                 
-                _logger.LogInformation($"SFU stream stopped: channel={channelId}, session={sessionId}");
-                
-                // Уведомляем всех клиентов
                 await Clients.Group($"channel_{channelId}").SendAsync("StreamStopped", new
                 {
                     ChannelId = channelId,
@@ -142,17 +133,16 @@ namespace TwitchClone.Api.Hubs
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Error in StreamStoppedInSfu for channel {channelId}");
+                _logger.LogError(ex, "Error in StreamStoppedInSfu for channel {ChannelId}", channelId);
             }
         }
         
-        // Запрос статуса стрима из ASP.NET
         public async Task GetStreamStatus(int channelId)
         {
             try
             {
                 var (isActive, sessionId) = await _channelService.GetActiveSession(channelId);
-                var viewers = _viewerTracker.GetViewerCount(channelId);
+                var viewers = _viewerTrackerService.GetViewerCount(channelId);
                 
                 await Clients.Caller.SendAsync("StreamStatusResponse", new
                 {
@@ -165,7 +155,7 @@ namespace TwitchClone.Api.Hubs
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Error in GetStreamStatus for channel {channelId}");
+                _logger.LogError(ex, "Error in GetStreamStatus for channel {ChannelId}", channelId);
             }
         }
     }
