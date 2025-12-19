@@ -8,5 +8,8 @@ namespace TwitchClone.Api.DTOs.Auth
         public string? AvatarUrl { get; set; }
         public string ChatColor { get; set; } = "#FFFFFF";
         public DateTime CreatedAt { get; set; }
+        
+        public bool IsAdmin { get; set; }
+        public bool IsModerator { get; set; }
     }
 }

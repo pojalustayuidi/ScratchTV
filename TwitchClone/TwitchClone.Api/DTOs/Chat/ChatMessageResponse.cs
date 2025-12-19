@@ -1,8 +1,10 @@
+using System;
+
 namespace TwitchClone.Api.DTOs.Chat
 {
     public class ChatMessageResponse
     {
-       public int Id { get; set; } // ← Здесь большая буква, но это нормально для DTO
+        public int Id { get; set; } 
         public int ChannelId { get; set; }
         public int? UserId { get; set; }
         public string Username { get; set; } = null!;

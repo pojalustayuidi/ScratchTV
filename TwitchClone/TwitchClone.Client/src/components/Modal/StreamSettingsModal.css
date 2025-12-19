@@ -22,6 +22,22 @@
   flex-direction: column;
 }
 
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .modal-header {
   display: flex;
   justify-content: space-between;
@@ -41,7 +57,19 @@
   margin-top: 10px;
   gap: 5px;
 }
+.spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top-color: white;
+  animation: spin 1s ease-in-out infinite;
+}
 
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
 .tab-btn {
   flex: 1;
   background: #2c2c2e;

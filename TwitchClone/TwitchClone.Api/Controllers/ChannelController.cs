@@ -1,120 +1,113 @@
+// Controllers/ChannelController.cs
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using TwitchClone.Api.DTOs.Channel;
+using TwitchClone.Api.DTOs.Channels;
 using TwitchClone.Api.Services;
-using TwitchClone.Api.DTOs;
-using System.Security.Claims;
-using Microsoft.Extensions.Logging;
 
 namespace TwitchClone.Api.Controllers
 {
-    [ApiController]
-    [Route("api/channel")]
-    public class ChannelController : ControllerBase
+    [Route("api/channels")]
+    public class ChannelController : BaseController
     {
-        private readonly ChannelService _channelService;
-        private readonly UserService _userService;
-        private readonly SfuSyncService _sfuSync;
-        private readonly IViewerTrackerService _viewerTracker;
+        private readonly IChannelService _channelService;
+        private readonly IUserService _userService;
+        private readonly ISfuSyncService _sfuSyncService;
+        private readonly IViewerTrackerService _viewerTrackerService;
         private readonly ILogger<ChannelController> _logger;
 
         private const int STREAM_TIMEOUT_SECONDS = 45;
 
         public ChannelController(
-            ChannelService channelService, 
-            UserService userService,
-            SfuSyncService sfuSync,
-            IViewerTrackerService viewerTracker,
+            IChannelService channelService,
+            IUserService userService,
+            ISfuSyncService sfuSyncService,
+            IViewerTrackerService viewerTrackerService,
             ILogger<ChannelController> logger)
         {
             _channelService = channelService;
             _userService = userService;
-            _sfuSync = sfuSync;
-            _viewerTracker = viewerTracker;
+            _sfuSyncService = sfuSyncService;
+            _viewerTrackerService = viewerTrackerService;
             _logger = logger;
         }
 
-        // ===============================
-        // ЗРИТЕЛЬ — получение канала
-        // ===============================
-        [HttpGet("{nickname}")]
-        public async Task<IActionResult> GetChannelByNickname(string nickname)
+        [AllowAnonymous]
+        [HttpGet("{username}")]
+        public async Task<ActionResult<ChannelResponse>> GetByUsername(string username)
         {
-            var user = await _userService.GetByUsername(nickname);
+            var user = await _userService.GetByUsername(username);
             if (user == null)
-                return NotFound(new { success = false, message = "Пользователь не найден" });
+                return Error("User not found", 404);
 
-            var channel = await _channelService.GetByUserId(user.Id);
-            if (channel == null)
-                channel = await _channelService.CreateChannelForUser(user.Id, user.Username);
+            var channel = await _channelService.GetByUserId(user.Id) 
+                ?? await _channelService.CreateChannelForUser(user.Id, user.Username);
 
-            var isLive =
-                channel.CurrentSessionId != null &&
-                channel.LastPingAt != null &&
-                channel.LastPingAt > DateTime.UtcNow.AddSeconds(-STREAM_TIMEOUT_SECONDS);
+            var isLive = await _channelService.IsChannelLive(channel.Id);
+            var viewers = await _channelService.GetViewerCount(channel.Id);
 
-            return Ok(new
+            var response = new ChannelResponse
             {
-                success = true,
-                id = channel.Id,
-                name = channel.Name,
-                avatarUrl = channel.User?.AvatarUrl,
-                description = channel.Description,
-                viewers = channel.Viewers,
-                isLive,
-                previewUrl = channel.PreviewUrl
-            });
+                Id = channel.Id,
+                UserId = channel.UserId,
+                Name = channel.Name,
+                Description = channel.Description,
+                PreviewUrl = channel.PreviewUrl,
+                IsLive = isLive,
+                Viewers = viewers,
+                PeakViewers = channel.PeakViewers,
+                TotalStreamTime = channel.TotalStreamTime,
+                LastStreamEndedAt = channel.LastStreamEndedAt,
+                CreatedAt = channel.CreatedAt,
+                Username = channel.User?.Username ?? user.Username,
+                AvatarUrl = channel.User?.AvatarUrl ?? user.AvatarUrl
+            };
+
+            return Success(response);
         }
 
-        // ===============================
-        // ОБНОВЛЕНИЕ КАНАЛА
-        // ===============================
-        [HttpPatch("{channelId:int}")]
-        public async Task<IActionResult> UpdateChannel(int channelId, [FromBody] ChannelUpdateDto dto)
+        [Authorize]
+        [HttpPut("{channelId:int}")]
+        public async Task<ActionResult> Update(int channelId, [FromBody] ChannelUpdateDto dto)
         {
-            if (dto == null)
-                return BadRequest(new { success = false });
+            var userId = GetUserId();
+            if (!userId.HasValue)
+                return Error("Unauthorized", 401);
 
-            var channel = await _channelService.UpdateChannelByChannelId(
+            var channel = await _channelService.GetById(channelId);
+            if (channel == null || channel.UserId != userId.Value)
+                return Error("Access denied", 403);
+
+            await _channelService.UpdateChannel(
                 channelId,
                 dto.Name,
                 dto.Description,
-                dto.PreviewUrl
-            );
+                dto.PreviewUrl);
 
-            if (channel == null)
-                return NotFound(new { success = false });
-
-            return Ok(new { success = true });
+            return Success();
         }
 
-        // ===============================
-        // НОВЫЙ МЕТОД: Получить информацию для подключения к SFU
-        // ===============================
+        [AllowAnonymous]
         [HttpGet("{channelId:int}/sfu-info")]
-        public async Task<IActionResult> GetSfuInfo(int channelId)
+        public async Task<ActionResult<object>> GetSfuInfo(int channelId)
         {
             try
             {
-                // Проверяем статус стрима в ASP.NET
                 var (isActive, sessionId) = await _channelService.GetActiveSession(channelId);
+                var sfuActive = await _sfuSyncService.IsStreamActiveInSfu(channelId);
                 
-                // Проверяем статус стрима в SFU
-                var sfuActive = await _sfuSync.IsStreamActiveInSfu(channelId);
-                
-                // Если есть расхождение - логируем
                 if (isActive != sfuActive)
                 {
-                    _logger.LogWarning($"SFU status mismatch for channel {channelId}");
+                    _logger.LogWarning("SFU status mismatch for channel {ChannelId}", channelId);
                 }
-                
-                // Получаем зрителей из обоих источников
-                var aspnetViewers = _viewerTracker.GetViewerCount(channelId);
-                var sfuViewers = await _sfuSync.GetViewersFromSfu(channelId);
-                
-                return Ok(new
+
+                var aspnetViewers = await _channelService.GetViewerCount(channelId);
+                var sfuViewers = await _sfuSyncService.GetViewersFromSfu(channelId);
+
+                return Success(new
                 {
-                    success = true,
                     channelId,
-                    isLive = isActive || sfuActive, // Считаем живым если хотя бы один источник активен
+                    isLive = isActive || sfuActive,
                     sessionId,
                     aspnetViewers,
                     sfuViewers,
@@ -131,152 +124,97 @@ namespace TwitchClone.Api.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error getting SFU info for channel {ChannelId}", channelId);
-                return StatusCode(500, new { success = false, message = ex.Message });
+                return Error("Internal server error", 500);
             }
         }
 
-        // ===============================
-        // СТАРТ СЕССИИ (СТРИМЕР) - ИСПРАВЛЕННЫЙ
-        // ===============================
-        [HttpPost("{channelId:int}/start-session")]
-        public async Task<IActionResult> StartStreamSession(int channelId, [FromBody] SessionCheckDto dto)
+        [Authorize]
+        [HttpPost("{channelId:int}/sessions/start")]
+        public async Task<ActionResult<object>> StartSession(int channelId, [FromBody] SessionCheckDto dto)
         {
-            var userId = GetUserIdOrNull();
-            if (userId == null) return Unauthorized();
+            var userId = GetUserId();
+            if (!userId.HasValue)
+                return Error("Unauthorized", 401);
 
             var channel = await _channelService.GetById(channelId);
             if (channel == null || channel.UserId != userId.Value)
-                return Unauthorized();
+                return Error("Access denied", 403);
 
-            // Проверяем, не активен ли уже стрим в SFU
-            var sfuActive = await _sfuSync.IsStreamActiveInSfu(channelId);
+            // Check if stream is active in SFU
+            var sfuActive = await _sfuSyncService.IsStreamActiveInSfu(channelId);
             if (sfuActive && channel.CurrentSessionId != dto?.SessionId)
             {
-                // Принудительно останавливаем старую сессию в SFU
-               if (!string.IsNullOrEmpty(channel.CurrentSessionId))
-{
-    await _sfuSync.NotifySfuStreamStopped(channelId, channel.CurrentSessionId);
-}
+                if (!string.IsNullOrEmpty(channel.CurrentSessionId))
+                {
+                    await _sfuSyncService.NotifySfuStreamStopped(channelId, channel.CurrentSessionId);
+                }
             }
 
             var sessionId = dto?.SessionId ?? Guid.NewGuid().ToString();
-
-            // 1. Обновляем в ASP.NET
             await _channelService.StartStreamSession(channelId, sessionId);
-            
-            // 2. Уведомляем SFU о начале стрима
-            var sfuNotified = await _sfuSync.NotifySfuStreamStarted(channelId, sessionId);
-            
-            // 3. Очищаем старых зрителей
-            await _viewerTracker.ClearChannelViewers(channelId);
+            await _sfuSyncService.NotifySfuStreamStarted(channelId, sessionId);
+            await _viewerTrackerService.ClearChannelViewers(channelId);
 
-            return Ok(new
-            {
-                success = true,
-                sessionId,
-                sfuNotified,
-                startedAt = DateTime.UtcNow
-            });
+            return Success(new { sessionId, startedAt = DateTime.UtcNow });
         }
 
-        // ===============================
-        // ПИНГ ОТ СТРИМЕРА
-        // ===============================
-        [HttpPost("{channelId:int}/ping")]
-        public async Task<IActionResult> PingStreamSession(int channelId)
+        [Authorize]
+        [HttpPost("{channelId:int}/sessions/ping")]
+        public async Task<ActionResult> PingSession(int channelId)
         {
-            var userId = GetUserIdOrNull();
-            if (userId == null) return Unauthorized();
+            var userId = GetUserId();
+            if (!userId.HasValue)
+                return Error("Unauthorized", 401);
 
             var channel = await _channelService.GetById(channelId);
             if (channel == null || channel.UserId != userId.Value)
-                return Unauthorized();
+                return Error("Access denied", 403);
 
             await _channelService.UpdateStreamPing(channelId);
-            return Ok(new { success = true });
+            return Success();
         }
 
-        // ===============================
-        // СТАТУС СЕССИИ - ДОБАВЛЯЕМ ИНФОРМАЦИЮ О SFU
-        // ===============================
-        [HttpGet("{channelId:int}/session-status")]
-        public async Task<IActionResult> GetSessionStatus(int channelId)
+        [AllowAnonymous]
+        [HttpGet("{channelId:int}/sessions/status")]
+        public async Task<ActionResult<object>> GetSessionStatus(int channelId)
         {
             var channel = await _channelService.GetById(channelId);
             if (channel == null)
-                return Ok(new { success = true, isLive = false });
+                return Error("Channel not found", 404);
 
-            // Статус из ASP.NET
-            var aspnetActive =
-                channel.CurrentSessionId != null &&
-                channel.LastPingAt != null &&
-                channel.LastPingAt > DateTime.UtcNow.AddSeconds(-STREAM_TIMEOUT_SECONDS);
+            var (aspnetActive, _) = await _channelService.GetActiveSession(channelId);
+            var sfuActive = await _sfuSyncService.IsStreamActiveInSfu(channelId);
+            var sfuViewers = await _sfuSyncService.GetViewersFromSfu(channelId);
+            var aspnetViewers = await _channelService.GetViewerCount(channelId);
 
-            // Статус из SFU
-            var sfuActive = await _sfuSync.IsStreamActiveInSfu(channelId);
-            var sfuViewers = await _sfuSync.GetViewersFromSfu(channelId);
-            var aspnetViewers = _viewerTracker.GetViewerCount(channelId);
-
-            // Считаем стрим активным, если хотя бы одна система говорит что он активен
-            var isLive = aspnetActive || sfuActive;
-            
-            // Берем максимальное количество зрителей
-            var totalViewers = Math.Max(aspnetViewers, sfuViewers);
-
-            return Ok(new
+            return Success(new
             {
-                success = true,
-                isLive,
+                isLive = aspnetActive || sfuActive,
                 sessionId = channel.CurrentSessionId,
                 canResume = aspnetActive,
-                viewers = totalViewers,
-                aspnet = new
-                {
-                    active = aspnetActive,
-                    viewers = aspnetViewers
-                },
-                sfu = new
-                {
-                    active = sfuActive,
-                    viewers = sfuViewers
-                }
+                viewers = Math.Max(aspnetViewers, sfuViewers),
+                aspnet = new { active = aspnetActive, viewers = aspnetViewers },
+                sfu = new { active = sfuActive, viewers = sfuViewers }
             });
         }
 
-        // ===============================
-        // СТОП СЕССИИ - ОСТАНАВЛИВАЕМ ОБЕ СИСТЕМЫ
-        // ===============================
-        [HttpPost("{channelId:int}/stop-session")]
-        public async Task<IActionResult> StopStreamSession(int channelId, [FromBody] SessionCheckDto dto)
+        [Authorize]
+        [HttpPost("{channelId:int}/sessions/stop")]
+        public async Task<ActionResult<object>> StopSession(int channelId, [FromBody] SessionCheckDto dto)
         {
-            var userId = GetUserIdOrNull();
-            if (userId == null) return Unauthorized();
+            var userId = GetUserId();
+            if (!userId.HasValue)
+                return Error("Unauthorized", 401);
 
             var channel = await _channelService.GetById(channelId);
             if (channel == null || channel.UserId != userId.Value)
-                return Unauthorized();
+                return Error("Access denied", 403);
 
-            // 1. Останавливаем в ASP.NET
             await _channelService.StopStreamSession(channelId, dto?.SessionId);
-            
-            // 2. Останавливаем в SFU
-            var sfuStopped = await _sfuSync.NotifySfuStreamStopped(channelId, dto?.SessionId);
-            
-            // 3. Очищаем зрителей
-            await _viewerTracker.ClearChannelViewers(channelId);
+            await _sfuSyncService.NotifySfuStreamStopped(channelId, dto?.SessionId);
+            await _viewerTrackerService.ClearChannelViewers(channelId);
 
-            return Ok(new
-            {
-                success = true,
-                sfuStopped,
-                stoppedAt = DateTime.UtcNow
-            });
-        }
-
-        private int? GetUserIdOrNull()
-        {
-            var id = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            return int.TryParse(id, out var uid) ? uid : null;
+            return Success(new { stoppedAt = DateTime.UtcNow });
         }
     }
 }

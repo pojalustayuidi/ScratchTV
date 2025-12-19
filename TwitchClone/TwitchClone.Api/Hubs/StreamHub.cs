@@ -1,3 +1,4 @@
+// Hubs/StreamHub.cs
 using System.Security.Claims;
 using Microsoft.AspNetCore.SignalR;
 using TwitchClone.Api.Services;
@@ -6,10 +7,10 @@ namespace TwitchClone.Api.Hubs
 {
     public class StreamHub : Hub
     {
-        private readonly IViewerTrackerService _viewerTracker;
-        private readonly ChannelService _channelService;
+        private readonly IViewerTrackerService _viewerTrackerService;
+        private readonly IChannelService _channelService;
         private readonly IStreamService _streamService;
-        private readonly SfuSyncService _sfuSync;
+        private readonly ISfuSyncService _sfuSyncService;
         private readonly ILogger<StreamHub> _logger;
 
         private static readonly Dictionary<int, StreamSession> _streamSessions = new();
@@ -23,16 +24,16 @@ namespace TwitchClone.Api.Hubs
         }
 
         public StreamHub(
-            IViewerTrackerService viewerTracker,
-            ChannelService channelService,
+            IViewerTrackerService viewerTrackerService,
+            IChannelService channelService,
             IStreamService streamService,
-            SfuSyncService sfuSync,
+            ISfuSyncService sfuSyncService,
             ILogger<StreamHub> logger)
         {
-            _viewerTracker = viewerTracker;
+            _viewerTrackerService = viewerTrackerService;
             _channelService = channelService;
             _streamService = streamService;
-            _sfuSync = sfuSync;
+            _sfuSyncService = sfuSyncService;
             _logger = logger;
         }
 
@@ -45,10 +46,9 @@ namespace TwitchClone.Api.Hubs
                 
                 if (!string.IsNullOrEmpty(channelIdStr) && int.TryParse(channelIdStr, out int channelId))
                 {
-                    // Добавляем в группу канала для broadcast сообщений
                     await Groups.AddToGroupAsync(Context.ConnectionId, $"channel_{channelId}");
-                    
-                    _logger.LogDebug($"Client connected: {Context.ConnectionId} to channel {channelId}");
+                    _logger.LogDebug("Client connected: {ConnectionId} to channel {ChannelId}", 
+                        Context.ConnectionId, channelId);
                 }
             }
             catch (Exception ex)
@@ -63,18 +63,16 @@ namespace TwitchClone.Api.Hubs
         {
             try
             {
-                // Удаляем из трекера зрителей
-                await _viewerTracker.RemoveViewer(Context.ConnectionId);
+                await _viewerTrackerService.RemoveViewer(Context.ConnectionId);
                 
-                // Удаляем из сессий стримеров
                 var streamerEntry = _streamSessions.FirstOrDefault(x => x.Value.ConnectionId == Context.ConnectionId);
                 if (streamerEntry.Key != 0)
                 {
                     _streamSessions.Remove(streamerEntry.Key);
-                    _logger.LogInformation($"Streamer disconnected from channel {streamerEntry.Key}");
+                    _logger.LogInformation("Streamer disconnected from channel {ChannelId}", streamerEntry.Key);
                 }
                 
-                _logger.LogDebug($"Client disconnected: {Context.ConnectionId}");
+                _logger.LogDebug("Client disconnected: {ConnectionId}", Context.ConnectionId);
             }
             catch (Exception ex)
             {
@@ -84,9 +82,6 @@ namespace TwitchClone.Api.Hubs
             await base.OnDisconnectedAsync(exception);
         }
 
-        // ===============================
-        // STREAMER METHODS
-        // ===============================
         public async Task JoinAsStreamer(int channelId, string sessionId)
         {
             try
@@ -98,7 +93,6 @@ namespace TwitchClone.Api.Hubs
                     return;
                 }
 
-                // Проверяем владение каналом
                 var channel = await _channelService.GetById(channelId);
                 if (channel == null || channel.UserId != userId.Value)
                 {
@@ -106,20 +100,19 @@ namespace TwitchClone.Api.Hubs
                     return;
                 }
 
-                // Проверяем, можно ли восстановить существующую сессию
-                var sfuActive = await _sfuSync.IsStreamActiveInSfu(channelId);
+                var sfuActive = await _sfuSyncService.IsStreamActiveInSfu(channelId);
                 var (isActive, existingSessionId) = await _channelService.GetActiveSession(channelId);
                 
-                // Если SFU уже транслирует, но с другой сессией
                 if (sfuActive && channel.CurrentSessionId != sessionId)
                 {
-                    // Принудительно останавливаем старую сессию в SFU
-                    await _sfuSync.NotifySfuStreamStopped(channelId, channel.CurrentSessionId);
+                    if (!string.IsNullOrEmpty(channel.CurrentSessionId))
+                    {
+                        await _sfuSyncService.NotifySfuStreamStopped(channelId, channel.CurrentSessionId);
+                    }
                 }
                 
                 if (isActive && existingSessionId == sessionId)
                 {
-                    // Восстанавливаем существующую сессию
                     _streamSessions[channelId] = new StreamSession
                     {
                         ConnectionId = Context.ConnectionId,
@@ -137,11 +130,11 @@ namespace TwitchClone.Api.Hubs
                         Message = "Session resumed"
                     });
                     
-                    _logger.LogInformation($"Streamer session resumed: channel={channelId}, session={sessionId}");
+                    _logger.LogInformation("Streamer session resumed: channel={ChannelId}, session={SessionId}", 
+                        channelId, sessionId);
                 }
                 else
                 {
-                    // Начинаем новую сессию
                     var newSessionId = Guid.NewGuid().ToString();
                     await _channelService.StartStreamSession(channelId, newSessionId);
                     
@@ -153,11 +146,8 @@ namespace TwitchClone.Api.Hubs
                         IsActive = true
                     };
                     
-                    // Очищаем старых зрителей
-                    await _viewerTracker.ClearChannelViewers(channelId);
-                    
-                    // Уведомляем SFU о начале стрима
-                    await _sfuSync.NotifySfuStreamStarted(channelId, newSessionId);
+                    await _viewerTrackerService.ClearChannelViewers(channelId);
+                    await _sfuSyncService.NotifySfuStreamStarted(channelId, newSessionId);
                     
                     await Clients.Caller.SendAsync("NewSessionStarted", new
                     {
@@ -167,7 +157,6 @@ namespace TwitchClone.Api.Hubs
                         SfuNotified = true
                     });
                     
-                    // Уведомляем всех о начале стрима
                     await Clients.Group($"channel_{channelId}").SendAsync("StreamStarted", new
                     {
                         ChannelId = channelId,
@@ -176,18 +165,16 @@ namespace TwitchClone.Api.Hubs
                         Source = "StreamHub"
                     });
                     
-                    _logger.LogInformation($"New stream session started: channel={channelId}, session={newSessionId}");
+                    _logger.LogInformation("New stream session started: channel={ChannelId}, session={SessionId}", 
+                        channelId, newSessionId);
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Error in JoinAsStreamer for channel {channelId}");
+                _logger.LogError(ex, "Error in JoinAsStreamer for channel {ChannelId}", channelId);
                 await Clients.Caller.SendAsync("Error", "Internal server error");
             }
         }
-
-
-
 
         public async Task StreamerPing(int channelId)
         {
@@ -199,15 +186,13 @@ namespace TwitchClone.Api.Hubs
                     {
                         session.LastPing = DateTime.UtcNow;
                         await _channelService.UpdateStreamPing(channelId);
-
-                        // Также пингуем SFU через синхронизацию
-                        await _sfuSync.SyncViewerCounts(channelId);
+                        await _sfuSyncService.SyncViewerCounts(channelId);
                     }
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Error in StreamerPing for channel {channelId}");
+                _logger.LogError(ex, "Error in StreamerPing for channel {ChannelId}", channelId);
             }
         }
 
@@ -221,25 +206,17 @@ namespace TwitchClone.Api.Hubs
                 var channel = await _channelService.GetById(channelId);
                 if (channel == null || channel.UserId != userId.Value) return;
 
-                // Получаем текущую сессию
                 var sessionId = channel.CurrentSessionId;
-                
-                // Завершаем сессию в ASP.NET
                 await _channelService.StopStreamSession(channelId);
                 
-                // Завершаем сессию в SFU
                 if (!string.IsNullOrEmpty(sessionId))
                 {
-                    await _sfuSync.NotifySfuStreamStopped(channelId, sessionId);
+                    await _sfuSyncService.NotifySfuStreamStopped(channelId, sessionId);
                 }
                 
-                // Очищаем зрителей
-                await _viewerTracker.ClearChannelViewers(channelId);
-                
-                // Удаляем из активных сессий
+                await _viewerTrackerService.ClearChannelViewers(channelId);
                 _streamSessions.Remove(channelId);
                 
-                // Уведомляем всех о завершении стрима
                 await Clients.Group($"channel_{channelId}").SendAsync("StreamStopped", new
                 {
                     ChannelId = channelId,
@@ -248,41 +225,33 @@ namespace TwitchClone.Api.Hubs
                     Message = "Stream ended"
                 });
                 
-                _logger.LogInformation($"Stream ended: channel={channelId}");
+                _logger.LogInformation("Stream ended: channel={ChannelId}", channelId);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Error in EndStream for channel {channelId}");
+                _logger.LogError(ex, "Error in EndStream for channel {ChannelId}", channelId);
             }
         }
 
-        // ===============================
-        // VIEWER METHODS
-        // ===============================
         public async Task JoinAsViewer(int channelId)
         {
             try
             {
                 var userId = GetUserIdFromContext();
-                
-                // Проверяем, активен ли стрим
                 var isLive = await _channelService.IsChannelLive(channelId);
+                
                 if (!isLive)
                 {
                     await Clients.Caller.SendAsync("StreamNotActive");
                     return;
                 }
                 
-                // Добавляем в группу (на всякий случай)
                 await Groups.AddToGroupAsync(Context.ConnectionId, $"channel_{channelId}");
-                
-                // Регистрируем как зрителя
-                var success = await _viewerTracker.AddViewer(channelId, Context.ConnectionId, userId);
+                var success = await _viewerTrackerService.AddViewer(channelId, Context.ConnectionId, userId);
                 
                 if (success)
                 {
-                    // Отправляем текущий счетчик зрителю
-                    var count = _viewerTracker.GetViewerCount(channelId);
+                    var count = _viewerTrackerService.GetViewerCount(channelId);
                     await Clients.Caller.SendAsync("ViewerJoined", new
                     {
                         ChannelId = channelId,
@@ -292,7 +261,8 @@ namespace TwitchClone.Api.Hubs
                         Instructions = "Connect to SFU WebSocket to receive video stream"
                     });
                     
-                    _logger.LogDebug($"Viewer joined: channel={channelId}, connection={Context.ConnectionId}");
+                    _logger.LogDebug("Viewer joined: channel={ChannelId}, connection={ConnectionId}", 
+                        channelId, Context.ConnectionId);
                 }
                 else
                 {
@@ -301,7 +271,7 @@ namespace TwitchClone.Api.Hubs
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Error in JoinAsViewer for channel {channelId}");
+                _logger.LogError(ex, "Error in JoinAsViewer for channel {ChannelId}", channelId);
                 await Clients.Caller.SendAsync("Error", "Internal server error");
             }
         }
@@ -310,18 +280,19 @@ namespace TwitchClone.Api.Hubs
         {
             try
             {
-                await _viewerTracker.RemoveViewer(Context.ConnectionId);
+                await _viewerTrackerService.RemoveViewer(Context.ConnectionId);
                 await Clients.Caller.SendAsync("ViewerLeft", new
                 {
                     ChannelId = channelId,
                     Message = "You left the stream"
                 });
                 
-                _logger.LogDebug($"Viewer left: channel={channelId}, connection={Context.ConnectionId}");
+                _logger.LogDebug("Viewer left: channel={ChannelId}, connection={ConnectionId}", 
+                    channelId, Context.ConnectionId);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Error in LeaveAsViewer for channel {channelId}");
+                _logger.LogError(ex, "Error in LeaveAsViewer for channel {ChannelId}", channelId);
             }
         }
 
@@ -329,9 +300,9 @@ namespace TwitchClone.Api.Hubs
         {
             try
             {
-                var count = _viewerTracker.GetViewerCount(channelId);
-                var uniqueCount = _viewerTracker.GetUniqueUserCount(channelId);
-                var sfuCount = await _sfuSync.GetViewersFromSfu(channelId);
+                var count = _viewerTrackerService.GetViewerCount(channelId);
+                var uniqueCount = _viewerTrackerService.GetUniqueUserCount(channelId);
+                var sfuCount = await _sfuSyncService.GetViewersFromSfu(channelId);
                 
                 await Clients.Caller.SendAsync("CurrentViewerCount", new
                 {
@@ -344,13 +315,10 @@ namespace TwitchClone.Api.Hubs
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Error in RequestViewerCount for channel {channelId}");
+                _logger.LogError(ex, "Error in RequestViewerCount for channel {ChannelId}", channelId);
             }
         }
 
-        // ===============================
-        // SFU CONNECTION METHODS
-        // ===============================
         public async Task GetSfuConnectionInfo(int channelId)
         {
             try
@@ -368,13 +336,12 @@ namespace TwitchClone.Api.Hubs
                     return;
                 }
                 
-                // Информация для подключения к SFU
                 await Clients.Caller.SendAsync("SfuInfo", new
                 {
                     ChannelId = channelId,
                     IsLive = true,
                     SessionId = sessionId,
-                    WsUrl = "ws://localhost:3000", // URL вашего Node.js SFU
+                    WsUrl = "ws://localhost:3000",
                     IceServers = new[]
                     {
                         new { urls = "stun:stun.l.google.com:19302" },
@@ -385,21 +352,68 @@ namespace TwitchClone.Api.Hubs
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Error in GetSfuConnectionInfo for channel {channelId}");
+                _logger.LogError(ex, "Error in GetSfuConnectionInfo for channel {ChannelId}", channelId);
             }
         }
+public async Task StopStreamManually(int channelId)
+{
+    try
+    {
+        var userId = GetUserIdFromContext();
+        if (!userId.HasValue)
+        {
+            await Clients.Caller.SendAsync("Error", "Authentication required");
+            return;
+        }
 
-        // ===============================
-        // UTILITY METHODS
-        // ===============================
+        var channel = await _channelService.GetById(channelId);
+        if (channel == null || channel.UserId != userId.Value)
+        {
+            await Clients.Caller.SendAsync("Error", "Channel not found or access denied");
+            return;
+        }
+
+        var sessionId = channel.CurrentSessionId;
+        
+        // 1. Notify SFU to stop the stream
+        if (!string.IsNullOrEmpty(sessionId))
+        {
+            await _sfuSyncService.NotifySfuStreamStopped(channelId, sessionId);
+        }
+
+        // 2. Stop stream in database
+        await _channelService.StopStreamSession(channelId, sessionId);
+
+        // 3. Clear viewers
+        await _viewerTrackerService.ClearChannelViewers(channelId);
+
+        // 4. Notify all clients
+        await Clients.Group($"channel_{channelId}").SendAsync("StreamStopped", new
+        {
+            ChannelId = channelId,
+            SessionId = sessionId,
+            StoppedAt = DateTime.UtcNow,
+            Message = "Stream stopped manually by streamer",
+            StoppedBy = "streamer"
+        });
+
+        _logger.LogInformation("Stream stopped manually: channel={ChannelId}, user={UserId}", 
+            channelId, userId);
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "Error in StopStreamManually for channel {ChannelId}", channelId);
+        await Clients.Caller.SendAsync("Error", "Internal server error");
+    }
+}
         public async Task GetStreamStatus(int channelId)
         {
             try
             {
                 var (isActive, sessionId) = await _channelService.GetActiveSession(channelId);
-                var viewerCount = _viewerTracker.GetViewerCount(channelId);
-                var sfuActive = await _sfuSync.IsStreamActiveInSfu(channelId);
-                var sfuViewers = await _sfuSync.GetViewersFromSfu(channelId);
+                var viewerCount = _viewerTrackerService.GetViewerCount(channelId);
+                var sfuActive = await _sfuSyncService.IsStreamActiveInSfu(channelId);
+                var sfuViewers = await _sfuSyncService.GetViewersFromSfu(channelId);
                 
                 await Clients.Caller.SendAsync("StreamStatus", new
                 {
@@ -414,7 +428,7 @@ namespace TwitchClone.Api.Hubs
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Error in GetStreamStatus for channel {channelId}");
+                _logger.LogError(ex, "Error in GetStreamStatus for channel {ChannelId}", channelId);
             }
         }
 

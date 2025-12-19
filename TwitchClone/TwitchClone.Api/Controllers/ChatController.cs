@@ -1,17 +1,15 @@
 // Controllers/ChatController.cs
-using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TwitchClone.Api.Data;
-using TwitchClone.Api.Models;
+using TwitchClone.Api.DTOs.Chat;
+using TwitchClone.Domain.Models;
 
 namespace TwitchClone.Api.Controllers
 {
-    [ApiController]
-    [Route("api/[controller]")]
-    [Authorize]
-    public class ChatController : ControllerBase
+    [Route("api/chat")]
+    public class ChatController : BaseController
     {
         private readonly AppDbContext _context;
 
@@ -20,176 +18,130 @@ namespace TwitchClone.Api.Controllers
             _context = context;
         }
 
-        // Получить список модераторов канала
-        [HttpGet("channel/{channelId}/moderators")]
-        public async Task<IActionResult> GetModerators(int channelId)
+        [AllowAnonymous]
+        [HttpGet("channels/{channelId}/messages")]
+        public async Task<ActionResult<List<ChatMessageResponse>>> GetMessages(int channelId, [FromQuery] int limit = 50)
+        {
+            limit = Math.Clamp(limit, 1, 200);
+
+            var messages = await _context.ChatMessages
+                .Where(m => m.ChannelId == channelId && !m.IsDeleted)
+                .OrderByDescending(m => m.Timestamp)
+                .Take(limit)
+                .Include(m => m.User)
+                .Select(m => new
+                {
+                    Message = m,
+                    IsStreamer = m.User != null && 
+                        _context.Channels.Any(c => c.UserId == m.User.Id && c.Id == channelId)
+                })
+                .OrderBy(x => x.Message.Timestamp)
+                .ToListAsync();
+
+            var response = messages.Select(x => new ChatMessageResponse
+            {
+                Id = x.Message.Id,
+                ChannelId = x.Message.ChannelId,
+                UserId = x.Message.UserId,
+                Username = x.Message.User != null ? x.Message.User.Username : "System",
+                AvatarUrl = x.Message.User != null ? x.Message.User.AvatarUrl : null,
+                Message = x.Message.IsDeleted ? "[message deleted]" : x.Message.Message,
+                Color = x.Message.User != null ? x.Message.User.ChatColor : "#AAAAAA",
+                Timestamp = x.Message.Timestamp,
+                IsSystemMessage = x.Message.IsSystemMessage,
+                IsDeleted = x.Message.IsDeleted,
+                IsModerator = x.Message.User != null && x.Message.User.IsModerator,
+                IsStreamer = x.IsStreamer
+            }).ToList();
+
+            return Success(response);
+        }
+
+        [Authorize]
+        [HttpGet("channels/{channelId}/moderators")]
+        public async Task<ActionResult<List<ChannelModeratorResponse>>> GetModerators(int channelId)
         {
             var moderators = await _context.ChannelModerators
                 .Where(m => m.ChannelId == channelId)
                 .Include(m => m.User)
-                .Select(m => new
-                {
-                    m.UserId,
-                    m.User.Username, // ← UserName → Username (у тебя в модели Username)
-                    m.User.AvatarUrl,
-                    m.AddedAt
-                })
+                .Include(m => m.AddedByUser)
                 .ToListAsync();
 
-            return Ok(moderators);
+            var response = moderators.Select(m => new ChannelModeratorResponse
+            {
+                UserId = m.UserId,
+                Username = m.User.Username,
+                AvatarUrl = m.User.AvatarUrl,
+                AddedAt = m.AddedAt,
+                AddedByUsername = m.AddedByUser.Username
+            }).ToList();
+
+            return Success(response);
         }
 
-        // Добавить модератора
-        [HttpPost("channel/{channelId}/moderators")]
-        public async Task<IActionResult> AddModerator(int channelId, [FromBody] AddModeratorDto dto)
+        [Authorize]
+        [HttpPost("channels/{channelId}/moderators")]
+        public async Task<ActionResult> AddModerator(int channelId, [FromBody] AddModeratorRequest request)
         {
-            var currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+            var userId = GetUserId();
+            if (!userId.HasValue)
+                return Error("Unauthorized", 401);
 
-            // Проверяем, что текущий пользователь - владелец канала
             var channel = await _context.Channels
-                .FirstOrDefaultAsync(c => c.Id == channelId && c.UserId == currentUserId);
-
+                .FirstOrDefaultAsync(c => c.Id == channelId && c.UserId == userId.Value);
+            
             if (channel == null)
-                return Forbid();
+                return Error("Access denied", 403);
 
-            // Проверяем, существует ли пользователь
             var userToAdd = await _context.Users
-                .FirstOrDefaultAsync(u => u.Username == dto.Username);
-
+                .FirstOrDefaultAsync(u => u.Username == request.Username);
+            
             if (userToAdd == null)
-                return NotFound("Пользователь не найден");
+                return Error("User not found", 404);
 
-            // Проверяем, не является ли уже модератором
-            var isAlreadyModerator = await _context.ChannelModerators
+            var alreadyModerator = await _context.ChannelModerators
                 .AnyAsync(m => m.ChannelId == channelId && m.UserId == userToAdd.Id);
-
-            if (isAlreadyModerator)
-                return BadRequest("Пользователь уже является модератором");
+            
+            if (alreadyModerator)
+                return Error("User is already a moderator", 409);
 
             var moderator = new ChannelModerator
             {
                 ChannelId = channelId,
                 UserId = userToAdd.Id,
-                AddedByUserId = currentUserId
+                AddedByUserId = userId.Value
             };
 
             _context.ChannelModerators.Add(moderator);
             await _context.SaveChangesAsync();
 
-            return Ok(new { Success = true });
+            return Success();
         }
 
-        // Удалить модератора
-        [HttpDelete("channel/{channelId}/moderators/{userId}")]
-        public async Task<IActionResult> RemoveModerator(int channelId, int userId)
+        [Authorize]
+        [HttpDelete("channels/{channelId}/moderators/{moderatorId:int}")]
+        public async Task<ActionResult> RemoveModerator(int channelId, int moderatorId)
         {
-            var currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+            var userId = GetUserId();
+            if (!userId.HasValue)
+                return Error("Unauthorized", 401);
 
-            // Проверяем, что текущий пользователь - владелец канала
             var channel = await _context.Channels
-                .FirstOrDefaultAsync(c => c.Id == channelId && c.UserId == currentUserId);
-
+                .FirstOrDefaultAsync(c => c.Id == channelId && c.UserId == userId.Value);
+            
             if (channel == null)
-                return Forbid();
+                return Error("Access denied", 403);
 
             var moderator = await _context.ChannelModerators
-                .FirstOrDefaultAsync(m => m.ChannelId == channelId && m.UserId == userId);
-
+                .FirstOrDefaultAsync(m => m.ChannelId == channelId && m.UserId == moderatorId);
+            
             if (moderator == null)
-                return NotFound("Модератор не найден");
+                return Error("Moderator not found", 404);
 
             _context.ChannelModerators.Remove(moderator);
             await _context.SaveChangesAsync();
 
-            return Ok(new { Success = true });
-        }
-
-        // Получить историю чата (API fallback)
-        [HttpGet("channel/{channelId}/messages")]
-public async Task<IActionResult> GetMessages(int channelId, [FromQuery] int limit = 50)
-{
-    var messages = await _context.ChatMessages
-        .Where(m => m.ChannelId == channelId && !m.IsDeleted)
-        .OrderByDescending(m => m.Timestamp)
-        .Take(limit)
-        .Include(m => m.User)
-        .Select(m => new
-        {
-            m.Id,
-            m.UserId,
-            Username = m.User != null ? m.User.Username : "Система",
-            AvatarUrl = m.User != null ? m.User.AvatarUrl : "",
-            m.Message,
-            Timestamp = m.Timestamp.ToString("yyyy-MM-ddTHH:mm:ss.fffZ"), // Форматируем дату
-            m.IsSystemMessage,
-            Color = m.User != null ? m.User.ChatColor : "#FFFFFF",
-            IsDeleted = m.IsDeleted
-        })
-        .OrderBy(m => m.Timestamp)
-        .ToListAsync();
-
-    return Ok(messages);
-}
-
-        // Получить список банов
-        [HttpGet("channel/{channelId}/bans")]
-        public async Task<IActionResult> GetBans(int channelId)
-        {
-            var currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-
-            // Только модераторы или владелец могут видеть баны
-            var isModerator = await _context.ChannelModerators
-                .AnyAsync(m => m.ChannelId == channelId && m.UserId == currentUserId);
-            var isOwner = await _context.Channels
-                .AnyAsync(c => c.Id == channelId && c.UserId == currentUserId);
-
-            if (!isModerator && !isOwner)
-                return Forbid();
-
-            var bans = await _context.ChannelBans
-                .Where(b => b.ChannelId == channelId && b.ExpiresAt > DateTime.UtcNow)
-                .Include(b => b.User)
-                .Include(b => b.Moderator)
-                .Select(b => new
-                {
-                    b.Id,
-                    b.UserId,
-                    Username = b.User.Username,
-                    Reason = b.Reason,
-                    CreatedAt = b.CreatedAt,
-                    ExpiresAt = b.ExpiresAt,
-                    ModeratorName = b.Moderator.Username
-                })
-                .ToListAsync();
-
-            return Ok(bans);
-        }
-
-        // Разбанить пользователя
-        [HttpDelete("channel/{channelId}/bans/{userId}")]
-        public async Task<IActionResult> UnbanUser(int channelId, int userId)
-        {
-            var currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-
-            // Проверяем права
-            var isModerator = await _context.ChannelModerators
-                .AnyAsync(m => m.ChannelId == channelId && m.UserId == currentUserId);
-            var isOwner = await _context.Channels
-                .AnyAsync(c => c.Id == channelId && c.UserId == currentUserId);
-
-            if (!isModerator && !isOwner)
-                return Forbid();
-
-            var ban = await _context.ChannelBans
-                .FirstOrDefaultAsync(b => b.ChannelId == channelId && b.UserId == userId);
-
-            if (ban == null)
-                return NotFound("Бан не найден");
-
-            _context.ChannelBans.Remove(ban);
-            await _context.SaveChangesAsync();
-
-            return Ok(new { Success = true });
+            return Success();
         }
     }
 }

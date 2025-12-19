@@ -1,13 +1,15 @@
-// services/signalrService.ts
 import { HubConnectionBuilder, HubConnection, HubConnectionState } from "@microsoft/signalr";
 
 let chatConnection: HubConnection | null = null;
 let connectionState: HubConnectionState = HubConnectionState.Disconnected;
 let connectionAttempts = 0;
-const maxConnectionAttempts = 5;
+const maxConnectionAttempts = 3;
 
-// Добавляем события для UI
 const connectionListeners: Array<(state: HubConnectionState) => void> = [];
+
+// Глобальные флаги для предотвращения множественных подключений
+let isConnecting = false;
+let connectPromise: Promise<HubConnection | null> | null = null;
 
 const notifyStateChange = (state: HubConnectionState) => {
   connectionState = state;
@@ -22,164 +24,172 @@ export const onConnectionStateChange = (callback: (state: HubConnectionState) =>
   };
 };
 
-export const getConnectionState = (): HubConnectionState => {
-  return connectionState;
-};
+export const getConnectionState = (): HubConnectionState => connectionState;
+export const isChatConnected = (): boolean => connectionState === HubConnectionState.Connected;
 
-export const isChatConnected = (): boolean => {
-  return connectionState === HubConnectionState.Connected;
-};
-
-export const startChatConnection = async (): Promise<HubConnection | null> => {
-  // Если уже подключаемся или подключены, возвращаем существующее соединение
-  if (chatConnection && (
-    connectionState === HubConnectionState.Connected ||
-    connectionState === HubConnectionState.Connecting ||
-    connectionState === HubConnectionState.Reconnecting
-  )) {
+/**
+ * startChatConnection
+ * @param anonymous - если true, подключаемся без токена (гость)
+ */
+export const startChatConnection = async (anonymous = false): Promise<HubConnection | null> => {
+  // Если уже есть активное подключение, возвращаем его
+  if (chatConnection && connectionState === HubConnectionState.Connected) {
     return chatConnection;
   }
 
-  const token = localStorage.getItem("token");
-  if (!token) {
-    console.warn("No token for chat connection");
-    return null;
+  // Если уже происходит подключение, возвращаем существующий промис
+  if (isConnecting && connectPromise) {
+    return connectPromise;
   }
 
-  // Сбрасываем счетчик попыток если было полное отключение
-  if (connectionState === HubConnectionState.Disconnected) {
-    connectionAttempts = 0;
-  }
-
-  // Проверяем лимит попыток
-  if (connectionAttempts >= maxConnectionAttempts) {
-    console.error("Max connection attempts reached");
-    return null;
-  }
-
-  connectionAttempts++;
+  // Проверяем токен только для аутентифицированных подключений
+  let token: string | null = null;
+  let isAnonymous = anonymous;
   
-  try {
-    // Если есть старое соединение - останавливаем
-    if (chatConnection) {
-      console.log("🛑 Stopping old chat connection");
-      await chatConnection.stop();
-      chatConnection = null;
+  if (!anonymous) {
+    token = localStorage.getItem("token");
+    if (!token) {
+      console.log("⚠️ No token found, falling back to anonymous connection");
+      isAnonymous = true;
     }
+  }
 
-    notifyStateChange(HubConnectionState.Connecting);
-
-    chatConnection = new HubConnectionBuilder()
-      .withUrl("http://localhost:5172/chatHub", {
-        accessTokenFactory: () => token,
-        withCredentials: true,
-        skipNegotiation: true,
-        transport: 1 // WebSockets only
-      })
-      .withAutomaticReconnect({
-        nextRetryDelayInMilliseconds: (retryContext) => {
-          const delay = Math.min(1000 * Math.pow(2, retryContext.previousRetryCount), 30000);
-          console.log(`Chat hub reconnecting in ${delay}ms...`);
-          return delay;
-        }
-      })
-      .build();
-
-    // ТОЛЬКО обработчики состояния соединения
-    chatConnection.onclose((error) => {
-      console.log("🔌 Chat hub disconnected", error);
-      notifyStateChange(HubConnectionState.Disconnected);
-    });
-
-    chatConnection.onreconnecting((error) => {
-      console.log("Chat hub reconnecting", error);
-      notifyStateChange(HubConnectionState.Reconnecting);
-    });
-
-    chatConnection.onreconnected((connectionId) => {
-      console.log("✅ Chat hub reconnected:", connectionId);
-      connectionAttempts = 0;
-      notifyStateChange(HubConnectionState.Connected);
-    });
-
-    await chatConnection.start();
-    console.log("✅ Chat hub connected successfully");
-    connectionAttempts = 0;
-    notifyStateChange(HubConnectionState.Connected);
-    
-    return chatConnection;
-  } catch (err) {
-    console.error("❌ Chat hub connection failed:", err);
-    chatConnection = null;
+  if (connectionAttempts >= maxConnectionAttempts) {
+    console.error("❌ Max connection attempts reached");
     notifyStateChange(HubConnectionState.Disconnected);
     return null;
   }
-};
 
-// Безопасный вызов метода хаба
-export const invokeChatHubMethod = async <T>(
-  methodName: string, 
-  ...args: any[]
-): Promise<T> => {
-  if (!chatConnection) {
-    throw new Error("Chat connection not established. Call startChatConnection first.");
-  }
+  isConnecting = true;
+  connectionAttempts++;
 
-  if (connectionState !== HubConnectionState.Connected) {
-    console.warn(`⚠️ Connection state is ${connectionState}, trying to invoke ${methodName}`);
-    
-    // Пробуем переподключиться если не подключены
-    if (connectionState === HubConnectionState.Disconnected) {
-      console.log("🔄 Attempting to reconnect...");
-      const newConnection = await startChatConnection();
-      if (!newConnection) {
-        throw new Error("Failed to reconnect to chat server");
+  // Создаем промис подключения
+  connectPromise = (async () => {
+    try {
+      // Если есть старое соединение, но оно не подключено, останавливаем его
+      if (chatConnection && connectionState !== HubConnectionState.Connected) {
+        try {
+          await chatConnection.stop();
+        } catch (stopError) {
+          console.warn("Warning stopping old connection:", stopError);
+        }
+        chatConnection = null;
       }
-    } else {
-      throw new Error(`Cannot send data, connection is ${connectionState}. Please wait...`);
-    }
-  }
 
-  try {
-    console.log(`📤 Invoking chat method: ${methodName}`, args);
-    const result = await chatConnection.invoke(methodName, ...args);
-    console.log(`✅ Method ${methodName} invoked successfully`);
-    return result;
-  } catch (error: any) {
-    console.error(`❌ Failed to invoke ${methodName}:`, error);
-    
-    if (error.message.includes("connection is not in the 'Connected' State")) {
-      console.log("🔄 Connection lost, attempting to reconnect...");
-      const newConnection = await startChatConnection();
-      if (!newConnection) {
-        throw new Error("Connection lost and reconnection failed");
+      notifyStateChange(HubConnectionState.Connecting);
+      
+      console.log(`🔗 Starting ${isAnonymous ? 'guest' : 'authenticated'} chat connection... (attempt ${connectionAttempts})`);
+
+      // Создаем новое соединение
+      chatConnection = new HubConnectionBuilder()
+        .withUrl("http://localhost:5172/hubs/chat", {
+          accessTokenFactory: () => token || "",
+          skipNegotiation: true,
+          transport: 1 // WebSockets
+        })
+        .withAutomaticReconnect({
+          nextRetryDelayInMilliseconds: retryContext => {
+            return Math.min(1000 * Math.pow(2, retryContext.previousRetryCount), 10000);
+          }
+        })
+        .build();
+
+      // Обработчики событий соединения
+      chatConnection.onclose(error => {
+        console.log("🔌 Connection closed", error ? `with error: ${error.message}` : "");
+        notifyStateChange(HubConnectionState.Disconnected);
+        isConnecting = false;
+      });
+
+      chatConnection.onreconnecting(error => {
+        console.log("🔄 Reconnecting...", error ? `Error: ${error.message}` : "");
+        notifyStateChange(HubConnectionState.Reconnecting);
+      });
+
+      chatConnection.onreconnected(connectionId => {
+        console.log(`✅ Reconnected successfully. Connection ID: ${connectionId}`);
+        connectionAttempts = 0;
+        notifyStateChange(HubConnectionState.Connected);
+        isConnecting = false;
+      });
+
+      // Запускаем соединение
+      await chatConnection.start();
+      
+      connectionAttempts = 0;
+      notifyStateChange(HubConnectionState.Connected);
+      isConnecting = false;
+      
+      console.log(`✅ Chat connection established (${isAnonymous ? 'guest' : 'authenticated'})`);
+      
+      return chatConnection;
+    } catch (err: any) {
+      console.error("❌ Failed to start chat connection:", err);
+      
+      // Если ошибка авторизации, пробуем подключиться как гость (если ещё не пытались)
+      if (!isAnonymous && err.statusCode === 401) {
+        console.log("🔄 Authentication failed, trying guest connection...");
+        return await startChatConnection(true);
       }
       
-      // Пробуем снова после переподключения
-      try {
-        return await chatConnection.invoke(methodName, ...args);
-      } catch (retryError: any) {
-        throw new Error(`Failed after reconnection: ${retryError.message}`);
-      }
-    }
-    
-    throw error;
-  }
-};
-
-export const getChatConnection = (): HubConnection | null => {
-  return chatConnection;
-};
-
-export const stopChatConnection = async (): Promise<void> => {
-  try {
-    if (chatConnection) {
-      await chatConnection.stop();
       chatConnection = null;
       notifyStateChange(HubConnectionState.Disconnected);
-      console.log("✅ Chat hub stopped");
+      isConnecting = false;
+      return null;
     }
-  } catch (err) {
-    console.error("❌ Failed to stop chat connection:", err);
+  })();
+
+  return connectPromise;
+};
+
+export const invokeChatHubMethod = async <T>(methodName: string, ...args: any[]): Promise<T> => {
+  // Если соединения нет или оно отключено, пытаемся подключиться
+  if (!chatConnection || connectionState !== HubConnectionState.Connected) {
+    console.warn(`⚠️ Connection not ready for ${methodName}, trying to reconnect...`);
+    
+    const newConnection = await startChatConnection(!localStorage.getItem("token"));
+    if (!newConnection) {
+      throw new Error("Chat connection not available");
+    }
   }
+
+  try {
+    console.log(`📤 Invoking ${methodName} with args:`, args);
+    const result = await chatConnection!.invoke<T>(methodName, ...args);
+    console.log(`✅ ${methodName} successful`);
+    return result;
+  } catch (err: any) {
+    console.error(`❌ Error invoking ${methodName}:`, err);
+    
+    if (err.message.includes("Гостям запрещено") || 
+        err.message.includes("не авторизован") ||
+        err.message.includes("гостевом режиме")) {
+      throw new Error("Войдите, чтобы использовать эту функцию");
+    }
+    
+    throw err;
+  }
+};
+
+export const getChatConnection = (): HubConnection | null => chatConnection;
+
+export const stopChatConnection = async (): Promise<void> => {
+  if (chatConnection) {
+    try {
+      await chatConnection.stop();
+      console.log("🛑 Chat connection stopped");
+    } catch (err) {
+      console.error("Error stopping chat connection:", err);
+    }
+    chatConnection = null;
+    notifyStateChange(HubConnectionState.Disconnected);
+    isConnecting = false;
+    connectPromise = null;
+  }
+};
+
+// Вспомогательная функция для проверки, является ли пользователь гостем
+export const isGuestConnection = (): boolean => {
+  const token = localStorage.getItem("token");
+  return !token;
 };

@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using TwitchClone.Api.Services;
+using TwitchClone.Api.Services.Implementations; // Добавь эту строку!
 
 namespace TwitchClone.Api.BackgroundServices
 {
@@ -27,14 +28,19 @@ namespace TwitchClone.Api.BackgroundServices
                 try
                 {
                     await using var scope = _scopeFactory.CreateAsyncScope();
+                    var sfuSync = scope.ServiceProvider.GetRequiredService<ISfuSyncService>();
                     
-                    var sfuSync = scope.ServiceProvider.GetRequiredService<SfuSyncService>();
+                    // Теперь работает!
+                    var isHealthy = await sfuSync.CheckSfuHealth();
                     
-                    // Просто логируем что сервис работает
-                    _logger.LogDebug("SFU heartbeat check");
-                    
-                    // Здесь можно добавить логику проверки соединения с SFU
-                    // или синхронизацию данных
+                    if (isHealthy)
+                    {
+                        _logger.LogDebug("SFU heartbeat successful - SFU is healthy");
+                    }
+                    else
+                    {
+                        _logger.LogWarning("SFU heartbeat failed - SFU may be down");
+                    }
                 }
                 catch (Exception ex)
                 {

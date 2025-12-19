@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("TwitchClone.Api")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+01385c2d0d71b64dacd5df29f7e4313be7c101b0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+f40d62dd324d57989e727d73292712a15dbb99c2")]
 [assembly: System.Reflection.AssemblyProductAttribute("TwitchClone.Api")]
 [assembly: System.Reflection.AssemblyTitleAttribute("TwitchClone.Api")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
