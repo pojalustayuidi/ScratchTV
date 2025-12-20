@@ -1,11 +1,11 @@
 const API_URL = "http://localhost:5172/api";
 
-// Упрощённая функция для обработки ответов подписок
+
 async function handleSubscriptionResponse(response: Response) {
   const text = await response.text();
-  console.log(`📡 Subscription response ${response.status}:`, text);
+  console.log(` Subscription response ${response.status}:`, text);
   
-  // Если 404 - это нормально для check/unsubscribe
+
   if (response.status === 404) {
     return { success: false, message: "Not found" };
   }
@@ -34,7 +34,7 @@ async function handleSubscriptionResponse(response: Response) {
       return { success: false, message: data.message || "Request failed" };
     }
     
-    // Бэкенд возвращает { success: true, data: {...} }
+
     const result = data.data || data;
     return {
       success: true,
@@ -48,7 +48,7 @@ async function handleSubscriptionResponse(response: Response) {
 
 export const subscribe = async (channelId: number, token: string) => {
   try {
-    console.log(`📩 Subscribing to channel ${channelId}`);
+    console.log(` Subscribing to channel ${channelId}`);
     
     const response = await fetch(`${API_URL}/subscriptions/channels/${channelId}`, {
       method: "POST",
@@ -59,9 +59,8 @@ export const subscribe = async (channelId: number, token: string) => {
     });
     
     const result = await handleSubscriptionResponse(response);
-    console.log('✅ Subscribe result:', result);
-    
-    // Бэкенд возвращает { subscribed: true, alreadySubscribed: false }
+    console.log(' Subscribe result:', result);
+   
     return {
       success: result.success,
       subscribed: result.subscribed || false,
@@ -69,14 +68,14 @@ export const subscribe = async (channelId: number, token: string) => {
       ...result
     };
   } catch (error: any) {
-    console.error('❌ Subscribe error:', error);
+    console.error(' Subscribe error:', error);
     throw error;
   }
 };
 
 export const unsubscribe = async (channelId: number, token: string) => {
   try {
-    console.log(`📩 Unsubscribing from channel ${channelId}`);
+    console.log(`Unsubscribing from channel ${channelId}`);
     
     const response = await fetch(`${API_URL}/subscriptions/channels/${channelId}`, {
       method: "DELETE",
@@ -87,9 +86,9 @@ export const unsubscribe = async (channelId: number, token: string) => {
     });
     
     const result = await handleSubscriptionResponse(response);
-    console.log('✅ Unsubscribe result:', result);
+    console.log('Unsubscribe result:', result);
     
-    // Если 404 или успех - считаем отписку успешной
+
     const success = result.success || response.status === 404;
     return {
       success,
@@ -97,14 +96,14 @@ export const unsubscribe = async (channelId: number, token: string) => {
       message: success ? "Unsubscribed successfully" : result.message
     };
   } catch (error: any) {
-    console.error('❌ Unsubscribe error:', error);
+    console.error(' Unsubscribe error:', error);
     throw error;
   }
 };
 
 export const checkSubscription = async (channelId: number, token: string) => {
   try {
-    console.log(`🔍 Checking subscription for channel ${channelId}`);
+    console.log(`Checking subscription for channel ${channelId}`);
     
     const response = await fetch(`${API_URL}/subscriptions/channels/${channelId}/status`, {
       method: "GET",
@@ -116,26 +115,26 @@ export const checkSubscription = async (channelId: number, token: string) => {
     
     // Если 404 - пользователь не подписан
     if (response.status === 404) {
-      console.log(`📊 User is not subscribed to channel ${channelId} (404)`);
+      console.log(`User is not subscribed to channel ${channelId} (404)`);
       return { subscribed: false };
     }
     
     // Если 401 - не авторизован
     if (response.status === 401) {
-      console.log('🔒 User not authorized');
+      console.log('User not authorized');
       return { subscribed: false };
     }
     
     const text = await response.text();
     
     if (!response.ok || !text) {
-      console.log(`❌ Status ${response.status}, returning false`);
+      console.log(`Status ${response.status}, returning false`);
       return { subscribed: false };
     }
     
     try {
       const data = JSON.parse(text);
-      console.log('📊 Check subscription response:', data);
+      console.log('Check subscription response:', data);
       
       // Бэкенд возвращает { success: true, data: { subscribed: boolean } }
       const subscribed = data.data?.subscribed || data.subscribed || false;
@@ -146,14 +145,14 @@ export const checkSubscription = async (channelId: number, token: string) => {
     }
     
   } catch (error: any) {
-    console.error('❌ Check subscription error:', error);
+    console.error('Check subscription error:', error);
     return { subscribed: false };
   }
 };
 
 export const getSubscriptionsCount = async (channelId: number) => {
   try {
-    console.log(`📊 Getting subscribers count for channel ${channelId}`);
+    console.log(`Getting subscribers count for channel ${channelId}`);
     
     const response = await fetch(`${API_URL}/subscriptions/channels/${channelId}/subscribers/count`, {
       method: "GET",
@@ -165,7 +164,7 @@ export const getSubscriptionsCount = async (channelId: number) => {
     const text = await response.text();
     
     if (!response.ok) {
-      console.log(`❌ Count error ${response.status}:`, text);
+      console.log(`Count error ${response.status}:`, text);
       return { count: 0 };
     }
     
@@ -175,24 +174,24 @@ export const getSubscriptionsCount = async (channelId: number) => {
     
     try {
       const data = JSON.parse(text);
-      // Бэкенд возвращает { success: true, data: { count: number } }
+
       const result = data.data || data;
       const count = result?.count || 0;
-      console.log(`📊 Subscribers count for channel ${channelId}: ${count}`);
+      console.log(`Subscribers count for channel ${channelId}: ${count}`);
       return { count };
     } catch (parseError) {
       console.error('Parse error:', parseError);
       return { count: 0 };
     }
   } catch (error: any) {
-    console.error('❌ Get subscribers count error:', error);
+    console.error('Get subscribers count error:', error);
     return { count: 0 };
   }
 };
 
 export const getMySubscriptions = async (token: string) => {
   try {
-    console.log('📋 Getting my subscriptions');
+    console.log('Getting my subscriptions');
     
     const response = await fetch(`${API_URL}/subscriptions/me`, {
       method: "GET",
@@ -217,7 +216,7 @@ export const getMySubscriptions = async (token: string) => {
       return [];
     }
   } catch (error: any) {
-    console.error('❌ Get my subscriptions error:', error);
+    console.error('Get my subscriptions error:', error);
     return [];
   }
 };

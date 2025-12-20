@@ -9,10 +9,9 @@ import HomePage from "./pages/HomePage/HomePage";
 import AuthModal from "./components/Modal/AuthModal";
 import LoginModal from "./components/Modal/LoginModal";
 import Profile from "./pages/Profile/Profile";
-import "./AppContent.css";
 import Channel from "./pages/Channel/Channel";
-
-// Ленивая загрузка компонента Channel
+import SubscriptionsPage from "./pages/Subscription/SubscriptionsPage"; // ВАЖНО: Singular, как у вас в коде
+import "./AppContent.css";
 
 export default function AppContent() {
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
@@ -58,7 +57,15 @@ export default function AppContent() {
                 path="/channel/:nickname"  
                 element={<Channel />}     
               />
-              {/* Добавьте fallback route для несуществующих страниц */}
+              <Route 
+                path="/subscriptions" 
+                element={user ? <SubscriptionsPage /> : <Navigate to="/" replace />} 
+              />
+              {/* Добавляем временные маршруты для других страниц */}
+              <Route path="/history" element={<div className="coming-soon">История - скоро будет</div>} />
+              <Route path="/categories" element={<div className="coming-soon">Категории - скоро будет</div>} />
+              <Route path="/category/:category" element={<div className="coming-soon">Категория - скоро будет</div>} />
+              <Route path="/stream/create" element={<div className="coming-soon">Создание стрима - скоро будет</div>} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Suspense>

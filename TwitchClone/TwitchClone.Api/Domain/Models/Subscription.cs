@@ -1,4 +1,4 @@
-// Domain/Models/Subscription.cs
+
 using System.ComponentModel.DataAnnotations.Schema;
 using TwitchClone.Api.Models;
 

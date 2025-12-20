@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using TwitchClone.Api.Services;
-using TwitchClone.Api.Services.Implementations; // Добавь эту строку!
+using TwitchClone.Api.Services.Implementations; 
 
 namespace TwitchClone.Api.BackgroundServices
 {
@@ -30,7 +30,7 @@ namespace TwitchClone.Api.BackgroundServices
                     await using var scope = _scopeFactory.CreateAsyncScope();
                     var sfuSync = scope.ServiceProvider.GetRequiredService<ISfuSyncService>();
                     
-                    // Теперь работает!
+        
                     var isHealthy = await sfuSync.CheckSfuHealth();
                     
                     if (isHealthy)

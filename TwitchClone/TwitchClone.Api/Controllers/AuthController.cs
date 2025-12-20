@@ -1,4 +1,4 @@
-// Controllers/AuthController.cs
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TwitchClone.Api.DTOs.Auth;

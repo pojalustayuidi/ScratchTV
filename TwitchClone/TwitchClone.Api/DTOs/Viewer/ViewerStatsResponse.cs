@@ -8,7 +8,7 @@ namespace TwitchClone.Api.DTOs.Viewer
         public List<string> ConnectionIds { get; set; } = new();
         public DateTime UpdatedAt { get; set; }
 
-        // Для аналитики
+    
         public Dictionary<string, int> ViewersByMinute { get; set; } = new();
         public int PeakViewers { get; set; }
         public TimeSpan AverageWatchTime { get; set; }

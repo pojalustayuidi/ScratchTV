@@ -21,10 +21,10 @@ class BackendIntegration {
         timestamp: new Date().toISOString(),
         metadata
       });
-      console.log(`✅ Backend notified about stream start: ${channelId}`);
+      console.log(`Backend notified about stream start: ${channelId}`);
       return true;
     } catch (error) {
-      console.error(`❌ Error notifying backend about stream start:`, error.message);
+      console.error(`Error notifying backend about stream start:`, error.message);
       return false;
     }
   }
@@ -38,10 +38,10 @@ class BackendIntegration {
         reason,
         timestamp: new Date().toISOString()
       });
-      console.log(`✅ Backend notified about stream stop: ${channelId}`);
+      console.log(`Backend notified about stream stop: ${channelId}`);
       return true;
     } catch (error) {
-      console.error(`❌ Error notifying backend about stream stop:`, error.message);
+      console.error(`Error notifying backend about stream stop:`, error.message);
       return false;
     }
   }
@@ -54,10 +54,10 @@ class BackendIntegration {
         userId,
         timestamp: new Date().toISOString()
       });
-      console.log(`✅ Backend notified about viewer joined: ${socketId}`);
+      console.log(`Backend notified about viewer joined: ${socketId}`);
       return true;
     } catch (error) {
-      console.error(`❌ Error notifying backend about viewer joined:`, error.message);
+      console.error(`Error notifying backend about viewer joined:`, error.message);
       return false;
     }
   }
@@ -69,10 +69,10 @@ class BackendIntegration {
         connectionId: socketId,
         timestamp: new Date().toISOString()
       });
-      console.log(`✅ Backend notified about viewer left: ${socketId}`);
+      console.log(`Backend notified about viewer left: ${socketId}`);
       return true;
     } catch (error) {
-      console.error(`❌ Error notifying backend about viewer left:`, error.message);
+      console.error(`Error notifying backend about viewer left:`, error.message);
       return false;
     }
   }
@@ -85,7 +85,7 @@ class BackendIntegration {
       });
       return response.data.valid;
     } catch (error) {
-      console.error(`❌ Error validating token:`, error.message);
+      console.error(`Error validating token:`, error.message);
       return false;
     }
   }
@@ -95,7 +95,7 @@ class BackendIntegration {
       const response = await this.axiosInstance.get(`/api/stream/${channelId}`);
       return response.data;
     } catch (error) {
-      console.error(`❌ Error getting stream info:`, error.message);
+      console.error(`Error getting stream info:`, error.message);
       return null;
     }
   }

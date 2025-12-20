@@ -1,23 +1,23 @@
-/* Поле поиска без кнопки */
+
 .search-wrapper {
   width: 100%;
   max-width: 520px;
   display: flex;
-  align-items: center; /* центрируем по вертикали */
+  align-items: center; 
   height: 100%;
 }
 
 .search-input {
   width: 100%;
-  height: 40px;           /* высота поля */
+  height: 40px;         
   padding: 0 20px;
-  border-radius: 20px;    /* скругление углов */
+  border-radius: 20px;   
   border: 2px solid transparent;
   background: #313135;
   color: var(--color-text);
   font-size: 15px;
   font-weight: 500;
-  line-height: 40px;      /* центрируем текст по вертикали */
+  line-height: 40px;     
   outline: none;
   box-shadow: inset 0 1px 4px rgba(0,0,0,0.4);
   transition: all 0.2s ease;

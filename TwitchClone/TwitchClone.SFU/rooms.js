@@ -11,9 +11,9 @@ class Room {
     this.producers = new Map();
     this.consumers = new Map();
     
-    // НОВОЕ: Хранилище зрителей
-    this.viewerSockets = new Set(); // Сокеты зрителей
-    this.viewerLastPing = new Map(); // Время последнего пинга зрителей
+ 
+    this.viewerSockets = new Set(); 
+    this.viewerLastPing = new Map(); 
     
     this.sessionId = null;
     this.lastPing = Date.now();
@@ -22,7 +22,7 @@ class Room {
     this.streamerSocketId = null;
     
     // Для очистки неактивных ресурсов
-    this.inactivityTimeout = 45000; // 45 секунд
+    this.inactivityTimeout = 45000; 
     this.cleanupTimer = null;
   }
 
@@ -45,7 +45,7 @@ class Room {
       ]
     });
 
-    console.log(`✅ Router created for channel ${this.channelId}`);
+    console.log(`Router created for channel ${this.channelId}`);
   }
 
   async createTransport(socketId) {
@@ -76,20 +76,19 @@ class Room {
     if (!transport) throw new Error("Transport not found");
     await transport.connect({ dtlsParameters });
   }
- // НОВЫЕ МЕТОДЫ ДЛЯ УПРАВЛЕНИЯ ЗРИТЕЛЯМИ
 
   // Добавить зрителя
   addViewer(socketId) {
     this.viewerSockets.add(socketId);
     this.viewerLastPing.set(socketId, Date.now());
-    console.log(`[Room ${this.channelId}] 👤 Viewer added: ${socketId} (total: ${this.viewerSockets.size})`);
+    console.log(`[Room ${this.channelId}] Viewer added: ${socketId} (total: ${this.viewerSockets.size})`);
   } removeViewer(socketId) {
     this.viewerSockets.delete(socketId);
     this.viewerLastPing.delete(socketId);
-    console.log(`[Room ${this.channelId}] 🚪 Viewer removed: ${socketId} (total: ${this.viewerSockets.size})`);
+    console.log(`[Room ${this.channelId}] Viewer removed: ${socketId} (total: ${this.viewerSockets.size})`);
   }
 
-  // Проверить, есть ли зритель в комнате
+
   hasViewer(socketId) {
     return this.viewerSockets.has(socketId);
   }
@@ -101,12 +100,10 @@ class Room {
     }
   }
 
-  // Проверить, находится ли зритель в комнате (для обратной совместимости)
   isViewerInRoom(socketId) {
     return this.hasViewer(socketId);
   }
 
-  // Обновить геттер viewersCount
   get viewersCount() {
     return this.viewerSockets.size;
   }
@@ -121,17 +118,14 @@ class Room {
     this.isStreaming = true;
     this.streamerSocketId = socketId;
     
-    // Обновляем последний пинг
     this.lastPing = Date.now();
     
-    // Запускаем таймер проверки активности
     this.startCleanupTimer();
 
     producer.on("close", () => {
       console.log(`[Room ${this.channelId}] Producer ${producer.id} closed`);
       this.producers.delete(producer.id);
       
-      // Если producers закончились - стрим завершен
       if (this.producers.size === 0) {
         this.stopStream();
       }
@@ -149,7 +143,6 @@ class Room {
     
     console.log(`[Room ${this.channelId}] Stopping stream explicitly`);
     
-    // Останавливаем таймер очистки
     if (this.cleanupTimer) {
       clearTimeout(this.cleanupTimer);
       this.cleanupTimer = null;
@@ -169,7 +162,6 @@ class Room {
     this.streamStartTime = null;
     this.streamerSocketId = null;
     
-    // Очищаем зрителей
     this.cleanupViewers();
     
     return true;
@@ -181,7 +173,6 @@ class Room {
 
     const result = [];
     
-    // Проверяем, есть ли активные producers
     if (this.producers.size === 0) {
       console.log(`[Room ${this.channelId}] No active producers for consumption`);
       return result;
@@ -238,12 +229,10 @@ class Room {
   closeSocket(socketId) {
     console.log(`[Room ${this.channelId}] Closing socket ${socketId}`);
     
-    // Если это стример, останавливаем стрим
     if (socketId === this.streamerSocketId) {
       this.stopStream();
     }
     
-    // Закрываем всех consumers для этого сокета
     const consumerMap = this.consumers.get(socketId);
     if (consumerMap) {
       for (const consumer of consumerMap.values()) {
@@ -256,7 +245,6 @@ class Room {
       this.consumers.delete(socketId);
     }
     
-    // Закрываем все транспорты для этого сокета
     for (const [transportId, transport] of this.transports.entries()) {
       if (transport.appData.socketId === socketId) {
         try {
@@ -269,7 +257,6 @@ class Room {
     }
   }
 
-  // Метод для очистки зрителей при завершении стрима
   cleanupViewers() {
     let closedCount = 0;
     for (const [socketId, consumerMap] of this.consumers.entries()) {
@@ -289,7 +276,6 @@ class Room {
     return closedCount;
   }
 
-  // Запуск таймера очистки неактивных стримов
   startCleanupTimer() {
     if (this.cleanupTimer) {
       clearTimeout(this.cleanupTimer);
@@ -300,7 +286,6 @@ class Room {
     }, this.inactivityTimeout);
   }
 
-  // Проверка и очистка неактивного стрима
   checkAndCleanup() {
     if (!this.isStreaming) return;
     
@@ -312,24 +297,20 @@ class Room {
       this.stopStream();
       this.cleanupTimer = null;
     } else {
-      // Перезапускаем таймер
       this.cleanupTimer = setTimeout(() => {
         this.checkAndCleanup();
       }, this.inactivityTimeout - inactiveTime);
     }
   }
 
-  // Обновление пинга стрима
   updatePing() {
     this.lastPing = Date.now();
     
-    // Перезапускаем таймер очистки
     if (this.isStreaming) {
       this.startCleanupTimer();
     }
   }
 
-  // Получение информации о стриме
   getStreamInfo() {
     return {
       channelId: this.channelId,
@@ -352,22 +333,18 @@ class Room {
     return this.producers.size > 0 && this.isStreaming;
   }
 
-  // Удаление комнаты (очистка всех ресурсов)
   destroy() {
     console.log(`[Room ${this.channelId}] Destroying room`);
     
-    // Останавливаем стрим если активен
     if (this.isStreaming) {
       this.stopStream();
     }
     
-    // Очищаем таймер
     if (this.cleanupTimer) {
       clearTimeout(this.cleanupTimer);
       this.cleanupTimer = null;
     }
     
-    // Закрываем все транспорты
     for (const [transportId, transport] of this.transports.entries()) {
       try {
         transport.close();
@@ -377,7 +354,6 @@ class Room {
     }
     this.transports.clear();
     
-    // Очищаем router
     if (this.router) {
       this.router.close();
       this.router = null;
@@ -391,24 +367,22 @@ async function getOrCreateRoom(channelId, worker) {
     room = new Room(channelId, worker);
     await room.init();
     rooms.set(channelId, room);
-    console.log(`✅ Room created for channel ${channelId}`);
+    console.log(`Room created for channel ${channelId}`);
   }
   return room;
 }
 
-// Функция для удаления комнаты
 function removeRoom(channelId) {
   const room = rooms.get(channelId);
   if (room) {
     room.destroy();
     rooms.delete(channelId);
-    console.log(`🗑️ Room removed for channel ${channelId}`);
+    console.log(`Room removed for channel ${channelId}`);
     return true;
   }
   return false;
 }
 
-// Функция для получения всех комнат
 function getAllRooms() {
   const roomsInfo = [];
   for (const [channelId, room] of rooms.entries()) {
@@ -417,11 +391,9 @@ function getAllRooms() {
   return roomsInfo;
 }
 
-// Функция для периодической очистки пустых комнат
 function cleanupEmptyRooms() {
   let removedCount = 0;
   for (const [channelId, room] of rooms.entries()) {
-    // Если комната пуста (нет транспортов, producers, consumers)
     if (room.transports.size === 0 && 
         room.producers.size === 0 && 
         room.consumers.size === 0 &&
@@ -433,7 +405,7 @@ function cleanupEmptyRooms() {
   }
   
   if (removedCount > 0) {
-    console.log(`🧹 Cleaned up ${removedCount} empty rooms`);
+    console.log(`Cleaned up ${removedCount} empty rooms`);
   }
   
   return removedCount;

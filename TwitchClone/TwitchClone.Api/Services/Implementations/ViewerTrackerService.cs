@@ -39,7 +39,7 @@ namespace TwitchClone.Api.Services.Implementations
                     return false;
                 }
 
-                // Remove old connection if exists
+    
                 if (_connectionInfo.TryRemove(connectionId, out var oldInfo))
                 {
                     if (_channelConnections.TryGetValue(oldInfo.ChannelId, out var oldViewers))
@@ -61,7 +61,6 @@ namespace TwitchClone.Api.Services.Implementations
                     }
                 }
 
-                // Add to new channel
                 _channelConnections.AddOrUpdate(channelId,
                     new HashSet<string> { connectionId },
                     (key, existingSet) =>
@@ -79,7 +78,6 @@ namespace TwitchClone.Api.Services.Implementations
                     LastActivity = DateTime.UtcNow
                 };
 
-                // Add to unique users
                 if (userId.HasValue)
                 {
                     _channelUniqueUsers.AddOrUpdate(channelId,
@@ -174,16 +172,13 @@ namespace TwitchClone.Api.Services.Implementations
                 
                 var count = GetViewerCount(channelId);
                 
-                // Update channel viewers count
                 var channel = await channelService.GetById(channelId);
                 if (channel != null)
                 {
-                    // Используем метод сервиса для обновления счетчика
                     var currentCount = await channelService.GetViewerCount(channelId);
                     if (currentCount != count)
                     {
-                        // Нужно добавить метод в IChannelService для обновления счетчика
-                        // Пока просто оставляем как есть
+                      
                     }
                 }
                 
@@ -271,8 +266,8 @@ namespace TwitchClone.Api.Services.Implementations
                     : new List<string>(),
                 UpdatedAt = DateTime.UtcNow,
                 ViewersByMinute = new Dictionary<string, int>(),
-                PeakViewers = GetViewerCount(channelId), // Здесь нужно добавить логику расчета пика
-                AverageWatchTime = TimeSpan.Zero // Здесь нужно добавить логику расчета
+                PeakViewers = GetViewerCount(channelId), 
+                AverageWatchTime = TimeSpan.Zero 
             };
         }
 

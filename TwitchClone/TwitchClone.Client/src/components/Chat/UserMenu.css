@@ -1,0 +1,321 @@
+/* components/Chat/UserMenu.css */
+.user-menu-container {
+  position: relative;
+  display: inline-block;
+  margin-left: auto;
+}
+
+.user-menu-button {
+  background: none;
+  border: none;
+  color: #aaa;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 4px;
+  transition: all 0.2s;
+  opacity: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.message:hover .user-menu-button {
+  opacity: 1;
+}
+
+.user-menu-button:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.user-menu-button svg {
+  width: 16px;
+  height: 16px;
+}
+
+.user-menu-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: #1f1f23;
+  border: 1px solid #2f2f35;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  min-width: 200px;
+  z-index: 1000;
+  overflow: hidden;
+}
+
+.user-info-section {
+  padding: 12px;
+  background: #18181b;
+  border-bottom: 1px solid #2f2f35;
+}
+
+.user-role-badges {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.badge {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.badge.streamer {
+  background: linear-gradient(135deg, #9146ff, #bf94ff);
+  color: white;
+}
+
+.badge.moderator {
+  background: #00a35c;
+  color: white;
+}
+
+.user-username {
+  font-weight: 600;
+  color: #efeff1;
+  font-size: 14px;
+  word-break: break-all;
+}
+
+.menu-divider {
+  height: 1px;
+  background: #2f2f35;
+}
+
+.menu-actions {
+  padding: 4px 0;
+}
+
+.menu-action {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  background: none;
+  border: none;
+  color: #efeff1;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.menu-action:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.menu-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.menu-action.delete {
+  color: #ff7b7b;
+}
+
+.menu-action.ban {
+  color: #ff7b7b;
+}
+
+.menu-action.moderator {
+  color: #00a35c;
+}
+
+.menu-action.unmoderator {
+  color: #ffa600;
+}
+
+.menu-action svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Модальное окно подтверждения */
+.confirm-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  backdrop-filter: blur(4px);
+}
+
+.confirm-modal {
+  background: #1f1f23;
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 400px;
+  width: 90%;
+  border: 1px solid #2f2f35;
+  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.3);
+}
+
+.confirm-modal h3 {
+  color: #efeff1;
+  margin: 0 0 16px 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.confirm-modal p {
+  color: #adadb8;
+  margin: 0 0 20px 0;
+  line-height: 1.5;
+  font-size: 14px;
+}
+
+.confirm-modal strong {
+  color: #9146ff;
+}
+
+.ban-form {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.form-group {
+  margin-bottom: 12px;
+}
+
+.form-group:last-child {
+  margin-bottom: 0;
+}
+
+.form-group label {
+  display: block;
+  color: #adadb8;
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+
+.ban-input {
+  width: 100%;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid #2f2f35;
+  border-radius: 6px;
+  color: #efeff1;
+  font-size: 14px;
+}
+
+.ban-input:focus {
+  outline: none;
+  border-color: #9146ff;
+}
+
+.ban-select {
+  width: 100%;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid #2f2f35;
+  border-radius: 6px;
+  color: #efeff1;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.ban-select:focus {
+  outline: none;
+  border-color: #9146ff;
+}
+
+.modal-error {
+  background: rgba(255, 87, 87, 0.1);
+  border: 1px solid rgba(255, 87, 87, 0.3);
+  border-radius: 6px;
+  padding: 10px 12px;
+  color: #ff7b7b;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.modal-btn {
+  padding: 10px 20px;
+  border-radius: 6px;
+  border: none;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 100px;
+}
+
+.modal-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.modal-btn.cancel {
+  background: #2f2f35;
+  color: #efeff1;
+}
+
+.modal-btn.cancel:hover:not(:disabled) {
+  background: #3f3f45;
+}
+
+.modal-btn.confirm {
+  background: #9146ff;
+  color: white;
+}
+
+.modal-btn.confirm:hover:not(:disabled) {
+  background: #a45cff;
+}
+
+.modal-btn.ban {
+  background: #dc3545;
+  color: white;
+}
+
+.modal-btn.ban:hover:not(:disabled) {
+  background: #e04a59;
+}
+
+.modal-btn.delete {
+  background: #dc3545;
+  color: white;
+}
+
+.modal-btn.delete:hover:not(:disabled) {
+  background: #e04a59;
+}
+
+.spinner-small {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top: 2px solid white;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}

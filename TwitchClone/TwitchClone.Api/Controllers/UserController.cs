@@ -1,4 +1,4 @@
-// Controllers/UserController.cs
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TwitchClone.Api.DTOs.Auth;
@@ -11,7 +11,7 @@ namespace TwitchClone.Api.Controllers
     public class UserController : BaseController
     {
         private readonly IUserService _userService;
-        private readonly ILogger<UserController> _logger; // Добавили ILogger
+        private readonly ILogger<UserController> _logger; 
 
         public UserController(IUserService userService, ILogger<UserController> logger)
         {
@@ -61,7 +61,7 @@ namespace TwitchClone.Api.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error updating profile"); // Исправленная строка
+                _logger.LogError(ex, "Error updating profile");
                 return Error("Internal server error", 500);
             }
         }

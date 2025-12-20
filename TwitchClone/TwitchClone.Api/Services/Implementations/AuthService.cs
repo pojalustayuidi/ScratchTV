@@ -36,7 +36,7 @@ namespace TwitchClone.Api.Services.Implementations
             _db.Users.Add(user);
             await _db.SaveChangesAsync();
 
-            // Create channel for user
+        
             var channel = new Channel
             {
                 UserId = user.Id,

@@ -26,7 +26,7 @@ namespace TwitchClone.Api.Services
             {
                 try
                 {
-                    // Проверяем тип и вызываем метод очистки
+            
                     var trackerType = _viewerTracker.GetType();
                     var cleanupMethod = trackerType.GetMethod("CleanupOldConnections");
                     

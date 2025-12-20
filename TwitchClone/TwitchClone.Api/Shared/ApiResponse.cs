@@ -1,4 +1,4 @@
-// Shared/ApiResponse.cs
+
 namespace TwitchClone.Api.Shared
 {
     public class ApiResponse<T>

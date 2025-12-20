@@ -375,19 +375,18 @@ public async Task StopStreamManually(int channelId)
 
         var sessionId = channel.CurrentSessionId;
         
-        // 1. Notify SFU to stop the stream
         if (!string.IsNullOrEmpty(sessionId))
         {
             await _sfuSyncService.NotifySfuStreamStopped(channelId, sessionId);
         }
 
-        // 2. Stop stream in database
+
         await _channelService.StopStreamSession(channelId, sessionId);
 
-        // 3. Clear viewers
+
         await _viewerTrackerService.ClearChannelViewers(channelId);
 
-        // 4. Notify all clients
+
         await Clients.Group($"channel_{channelId}").SendAsync("StreamStopped", new
         {
             ChannelId = channelId,

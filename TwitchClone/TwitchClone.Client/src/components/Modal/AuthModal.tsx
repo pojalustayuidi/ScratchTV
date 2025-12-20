@@ -26,7 +26,7 @@ export default function AuthModal({ isOpen, onClose, onRegister }: AuthModalProp
       const res = await onRegister({ username, email, password });
       if (res.success) {
         setSuccess(true);
-        // Через 2 секунды закрываем модалку
+   
         setTimeout(() => {
           setSuccess(false);
           setUsername("");

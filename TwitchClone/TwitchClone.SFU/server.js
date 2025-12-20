@@ -33,7 +33,6 @@ const BackendIntegration = require("./backend-integration");
     });
   });
 
-  // Также для простого health check
   app.get('/health', (req, res) => {
     res.json({ 
       status: 'ok', 
@@ -44,7 +43,6 @@ const BackendIntegration = require("./backend-integration");
     });
   });
 
-  // Статистика всех комнат
   app.get('/api/rooms', (req, res) => {
     const roomsInfo = getAllRooms();
     res.json({
@@ -54,7 +52,6 @@ const BackendIntegration = require("./backend-integration");
     });
   });
 
-  // Принудительная остановка стрима
   app.post('/api/room/:channelId/stop', (req, res) => {
     const { channelId } = req.params;
     const room = rooms.get(channelId);
@@ -69,7 +66,6 @@ const BackendIntegration = require("./backend-integration");
     try {
       room.stopStream();
       
-      // Уведомляем всех о завершении стрима
       io.to(`channel:${channelId}`).emit("streamStopped", { 
         channelId, 
         sessionId: room.sessionId,
@@ -88,7 +84,6 @@ const BackendIntegration = require("./backend-integration");
     }
   });
 
-  // Удаление комнаты
   app.delete('/api/room/:channelId', (req, res) => {
     const { channelId } = req.params;
     const removed = removeRoom(channelId);
@@ -106,15 +101,13 @@ const BackendIntegration = require("./backend-integration");
     }
   });
 
-  // Вспомогательная функция для отправки обновлений зрителей
   const broadcastViewersUpdate = (channelId) => {
     const room = rooms.get(channelId);
     if (!room) return;
     
     const viewersCount = room.viewersCount;
-    console.log(`[Room ${channelId}] 📢 Broadcasting viewers update: ${viewersCount} viewers`);
+    console.log(`[Room ${channelId}] Broadcasting viewers update: ${viewersCount} viewers`);
     
-    // Отправляем обновление только в комнату канала
     io.to(`channel:${channelId}`).emit('viewersUpdated', {
       channelId: channelId,
       count: viewersCount,
@@ -123,62 +116,53 @@ const BackendIntegration = require("./backend-integration");
   };
 
   io.on("connection", socket => {
-    console.log("🔌 Connected:", socket.id);
+    console.log("Connected:", socket.id);
 
-    // Отправляем подтверждение подключения
     socket.emit("connected", { 
       socketId: socket.id,
       message: "Connected to SFU server"
     });
 
-    // Новое: Зритель присоединяется к каналу
     socket.on("joinChannel", async ({ channelId }, cb) => {
       try {
-        console.log(`👤 ${socket.id} joining channel ${channelId}`);
+        console.log(`${socket.id} joining channel ${channelId}`);
         
         const room = await getOrCreateRoom(channelId, worker);
         
-        // Добавляем сокет в комнату Socket.IO
         await socket.join(`channel:${channelId}`);
         
-        // Обновляем счетчик зрителей в объекте Room
         room.addViewer(socket.id);
         
-        // Оповещаем бэкенд
         await backend.notifyViewerJoined(channelId, socket.id);
         
-        // Отправляем обновление всем в комнате
         broadcastViewersUpdate(channelId);
         
-        console.log(`✅ ${socket.id} joined channel ${channelId} (viewers: ${room.viewersCount})`);
+        console.log(`${socket.id} joined channel ${channelId} (viewers: ${room.viewersCount})`);
         
         if (cb) cb({ success: true, viewersCount: room.viewersCount });
       } catch (error) {
-        console.error(`❌ Error joining channel for ${socket.id}:`, error.message);
+        console.error(`Error joining channel for ${socket.id}:`, error.message);
         if (cb) cb({ error: error.message });
       }
     });
 
-    // Получить возможности RTP маршрутизатора
     socket.on("getRouterRtpCapabilities", async ({ channelId }, cb) => {
       try {
-        console.log(`📡 ${socket.id} requested RTP capabilities for channel ${channelId}`);
+        console.log(`${socket.id} requested RTP capabilities for channel ${channelId}`);
         const room = await getOrCreateRoom(channelId, worker);
         cb(room.router.rtpCapabilities);
       } catch (error) {
-        console.error(`❌ Error getting RTP capabilities for ${socket.id}:`, error.message);
+        console.error(`Error getting RTP capabilities for ${socket.id}:`, error.message);
         cb({ error: error.message });
       }
     });
 
-    // Создать WebRTC-транспорт
     socket.on("createWebRtcTransport", async ({ channelId, isProducer = false }, cb) => {
       try {
-        console.log(`🚚 ${socket.id} creating transport for channel ${channelId} (${isProducer ? 'producer' : 'consumer'})`);
+        console.log(`${socket.id} creating transport for channel ${channelId} (${isProducer ? 'producer' : 'consumer'})`);
         const room = await getOrCreateRoom(channelId, worker);
         const transport = await room.createTransport(socket.id);
         
-        // Если это стример, добавляем в комнату
         if (isProducer) {
           await socket.join(`channel:${channelId}`);
         }
@@ -190,15 +174,14 @@ const BackendIntegration = require("./backend-integration");
           dtlsParameters: transport.dtlsParameters
         });
       } catch (error) {
-        console.error(`❌ Error creating transport for ${socket.id}:`, error.message);
+        console.error(`Error creating transport for ${socket.id}:`, error.message);
         cb({ error: error.message });
       }
     });
 
-    // Подключить транспорт
     socket.on("connectTransport", async ({ channelId, transportId, dtlsParameters }, cb) => {
       try {
-        console.log(`🔌 ${socket.id} connecting transport ${transportId}`);
+        console.log(`${socket.id} connecting transport ${transportId}`);
         const room = rooms.get(channelId);
         if (!room) {
           throw new Error("Room not found");
@@ -206,21 +189,19 @@ const BackendIntegration = require("./backend-integration");
         await room.connectTransport(transportId, dtlsParameters);
         cb({ success: true });
       } catch (error) {
-        console.error(`❌ Error connecting transport for ${socket.id}:`, error.message);
+        console.error(`Error connecting transport for ${socket.id}:`, error.message);
         cb({ success: false, error: error.message });
       }
     });
 
-    // Создать producer (видео/аудио)
     socket.on("produce", async (data, cb) => {
       try {
-        console.log(`🎥 ${socket.id} producing for channel ${data.channelId}, kind: ${data.kind}`);
+        console.log(`${socket.id} producing for channel ${data.channelId}, kind: ${data.kind}`);
         const room = rooms.get(data.channelId);
         if (!room) {
           throw new Error("Room not found");
         }
         
-        // Стример уже должен быть в комнате, но на всякий случай добавляем
         await socket.join(`channel:${data.channelId}`);
         
         const producer = await room.createProducer({ 
@@ -228,20 +209,18 @@ const BackendIntegration = require("./backend-integration");
           socketId: socket.id 
         });
         
-        // Уведомляем всех о начале стрима
         io.to(`channel:${data.channelId}`).emit("streamStarted", { 
           channelId: data.channelId, 
           sessionId: data.sessionId,
           streamerSocketId: socket.id
         });
         
-        // Уведомляем бэкенд
         await backend.notifyStreamStarted(data.channelId, data.sessionId, null);
         
-        console.log(`✅ Producer ${producer.id} created for channel ${data.channelId}`);
+        console.log(`Producer ${producer.id} created for channel ${data.channelId}`);
         cb({ id: producer.id });
       } catch (error) {
-        console.error(`❌ Error producing for ${socket.id}:`, error.message);
+        console.error(`Error producing for ${socket.id}:`, error.message);
         cb({ error: error.message });
       }
     });
@@ -249,24 +228,21 @@ const BackendIntegration = require("./backend-integration");
     // Остановить стрим
     socket.on("stopStream", async ({ channelId, sessionId }, cb) => {
       try {
-        console.log(`🛑 ${socket.id} stopping stream for channel ${channelId}, session: ${sessionId}`);
+        console.log(`${socket.id} stopping stream for channel ${channelId}, session: ${sessionId}`);
         
         const room = rooms.get(channelId);
         if (!room) {
-          console.log(`❌ Room ${channelId} not found`);
+          console.log(`Room ${channelId} not found`);
           return cb({ success: false, error: "Room not found" });
         }
 
-        // Проверяем, является ли этот сокет стримером
         if (room.streamerSocketId !== socket.id) {
-          console.log(`❌ ${socket.id} is not the streamer for channel ${channelId}`);
+          console.log(`${socket.id} is not the streamer for channel ${channelId}`);
           return cb({ success: false, error: "Not authorized to stop this stream" });
         }
 
-        // Останавливаем стрим
         room.stopStream();
 
-        // Уведомляем всех зрителей
         io.to(`channel:${channelId}`).emit("streamStopped", { 
           channelId, 
           sessionId,
@@ -274,18 +250,16 @@ const BackendIntegration = require("./backend-integration");
           stoppedBy: socket.id
         });
 
-        // Уведомляем бэкенд
         await backend.notifyStreamStopped(channelId, sessionId, null, "streamer_stopped");
 
-        console.log(`✅ Stream ${channelId} stopped by ${socket.id}`);
+        console.log(`Stream ${channelId} stopped by ${socket.id}`);
         cb({ success: true });
       } catch (error) {
-        console.error(`❌ Error stopping stream for ${socket.id}:`, error.message);
+        console.error(`Error stopping stream for ${socket.id}:`, error.message);
         cb({ success: false, error: error.message });
       }
     });
 
-    // Пинг от стримера
     socket.on("streamerPing", ({ channelId, sessionId }) => {
       const room = rooms.get(channelId);
       if (room) {
@@ -293,26 +267,22 @@ const BackendIntegration = require("./backend-integration");
       }
     });
 
-    // Пинг от зрителя
     socket.on("viewerPing", ({ channelId }) => {
       const room = rooms.get(channelId);
       if (room) {
-        // Обновляем время последней активности зрителя
         room.updateViewerPing(socket.id);
-        console.log(`👁️ Viewer ${socket.id} ping for channel ${channelId}`);
+        console.log(`Viewer ${socket.id} ping for channel ${channelId}`);
       }
     });
 
-    // Создать consumers для данного socket
     socket.on("consume", async (data, cb) => {
       try {
-        console.log(`👁️ ${socket.id} consuming for channel ${data.channelId}`);
+        console.log(`${socket.id} consuming for channel ${data.channelId}`);
         const room = rooms.get(data.channelId);
         if (!room) {
           throw new Error("Room not found");
         }
         
-        // Зритель присоединяется к комнате при первом потреблении
         if (!room.isViewerInRoom(socket.id)) {
           await socket.join(`channel:${data.channelId}`);
           room.addViewer(socket.id);
@@ -325,15 +295,14 @@ const BackendIntegration = require("./backend-integration");
           socketId: socket.id 
         });
         
-        console.log(`✅ Created ${consumers.length} consumers for ${socket.id}`);
+        console.log(`Created ${consumers.length} consumers for ${socket.id}`);
         cb(consumers);
       } catch (error) {
-        console.error(`❌ Error consuming for ${socket.id}:`, error.message);
+        console.error(`Error consuming for ${socket.id}:`, error.message);
         cb({ error: error.message });
       }
     });
 
-    // Проверка стрима
     socket.on("checkStream", async ({ channelId }, cb) => {
       try {
         const room = rooms.get(channelId);
@@ -353,32 +322,26 @@ const BackendIntegration = require("./backend-integration");
           streamerSocketId: room.streamerSocketId
         });
       } catch (error) {
-        console.error(`❌ Error checking stream for ${socket.id}:`, error.message);
+        console.error(`Error checking stream for ${socket.id}:`, error.message);
         cb({ error: error.message });
       }
     });
 
-    // Зритель покинул стрим
     socket.on("leaveStream", async ({ channelId }) => {
-      console.log(`🚪 ${socket.id} leaving stream ${channelId}`);
+      console.log(`${socket.id} leaving stream ${channelId}`);
       const room = rooms.get(channelId);
       if (room) {
-        // Удаляем зрителя из комнаты
         room.removeViewer(socket.id);
         socket.leave(`channel:${channelId}`);
         
-        // Оповещаем бэкенд
         await backend.notifyViewerLeft(channelId, socket.id);
         
-        // Обновляем счетчик для остальных
         broadcastViewersUpdate(channelId);
         
-        // Закрываем ресурсы
         room.closeSocket(socket.id);
       }
     });
 
-    // Получить количество зрителей
     socket.on("getViewerCount", ({ channelId }, cb) => {
       const room = rooms.get(channelId);
       if (!room) {
@@ -387,7 +350,6 @@ const BackendIntegration = require("./backend-integration");
       cb({ count: room.viewersCount });
     });
 
-    // Запросить обновление счетчика зрителей
     socket.on("requestViewerCount", ({ channelId }, cb) => {
       const room = rooms.get(channelId);
       if (!room) {
@@ -397,30 +359,24 @@ const BackendIntegration = require("./backend-integration");
       const count = room.viewersCount;
       cb({ count });
       
-      // Также отправляем обновление всем в комнате
       broadcastViewersUpdate(channelId);
     });
 
     // Обработка отключения
     socket.on("disconnect", async (reason) => {
-      console.log(`❌ Disconnected: ${socket.id}, reason: ${reason}`);
+      console.log(`Disconnected: ${socket.id}, reason: ${reason}`);
       
-      // Закрываем все комнаты для этого сокета
       for (const [channelId, room] of rooms.entries()) {
         if (room.hasViewer(socket.id)) {
-          // Удаляем зрителя
           room.removeViewer(socket.id);
           
-          // Оповещаем бэкенд
           await backend.notifyViewerLeft(channelId, socket.id);
           
-          // Обновляем счетчик для остальных
           broadcastViewersUpdate(channelId);
         }
         
         room.closeSocket(socket.id);
         
-        // Если комната стала пустой, удаляем её
         if (room.transports.size === 0 && 
             room.producers.size === 0 && 
             room.consumers.size === 0 &&
@@ -431,42 +387,39 @@ const BackendIntegration = require("./backend-integration");
       }
     });
 
-    // Обработка ошибок
     socket.on("error", (error) => {
-      console.error(`❌ Socket error for ${socket.id}:`, error);
+      console.error(`Socket error for ${socket.id}:`, error);
     });
   });
 
-  // Запускаем периодическую очистку пустых комнат
   setInterval(() => {
     cleanupEmptyRooms();
-  }, 60000); // Каждую минуту
+  }, 60000); 
 
-  // Мониторинг активности комнат
+
   setInterval(() => {
-    console.log(`📊 Active rooms: ${rooms.size}`);
+    console.log(`Active rooms: ${rooms.size}`);
     for (const [channelId, room] of rooms.entries()) {
       if (room.isStreaming) {
         const info = room.getStreamInfo();
-        console.log(`  📍 ${channelId}: ${info.producersCount} producers, ${info.viewersCount} viewers, uptime: ${Math.floor(info.uptime / 1000)}s`);
+        console.log(`${channelId}: ${info.producersCount} producers, ${info.viewersCount} viewers, uptime: ${Math.floor(info.uptime / 1000)}s`);
         
-        // Периодически отправляем обновления счетчика
         broadcastViewersUpdate(channelId);
       }
     }
-  }, 30000); // Каждые 30 секунд
+  }, 30000); 
 
   server.listen(3000, () => {
-    console.log("🚀 SFU listening on :3000");
-    console.log("📍 Health check: http://localhost:3000/health");
-    console.log("📍 Rooms API: http://localhost:3000/api/rooms");
+    console.log("SFU listening on :3000");
+    console.log("Health check: http://localhost:3000/health");
+    console.log("Rooms API: http://localhost:3000/api/rooms");
   });
 
-  // Graceful shutdown
+
   process.on('SIGINT', () => {
-    console.log('🛑 Shutting down SFU server...');
+    console.log('Shutting down SFU server...');
     
-    // Останавливаем все стримы
+
     for (const [channelId, room] of rooms.entries()) {
       if (room.isStreaming) {
         room.stopStream();
@@ -479,12 +432,12 @@ const BackendIntegration = require("./backend-integration");
       room.destroy();
     }
     
-    // Закрываем Socket.IO
+
     io.close();
     
-    // Закрываем сервер
+
     server.close(() => {
-      console.log('✅ SFU server stopped');
+      console.log('SFU server stopped');
       process.exit(0);
     });
   });

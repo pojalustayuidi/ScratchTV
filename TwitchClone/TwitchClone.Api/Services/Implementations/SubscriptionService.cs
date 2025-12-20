@@ -37,7 +37,7 @@ namespace TwitchClone.Api.Services.Implementations
         CreatedAt = DateTime.UtcNow
     });
 
-    // ВАЖНО: Обновляем счетчик
+
     channel.SubscribersCount = await _db.Subscriptions
         .CountAsync(s => s.ChannelId == channelId);
     
@@ -55,7 +55,7 @@ public async Task<bool> Unsubscribe(int subscriberId, int channelId)
     _db.Subscriptions.Remove(sub);
     await _db.SaveChangesAsync();
 
-    // ВАЖНО: Обновляем счетчик после удаления
+
     var channel = await _db.Channels.FindAsync(channelId);
     if (channel != null)
     {

@@ -51,7 +51,7 @@ namespace TwitchClone.Api.Controllers
             _logger.LogInformation("SFU stopping stream: Channel={ChannelId}, Session={SessionId}, Reason={Reason}", 
                 request.ChannelId, request.SessionId, request.Reason);
 
-            // 1. Force stop the session in database
+       
             var channel = await _channelService.ForceStopStreamBySession(request.ChannelId, request.SessionId);
             if (channel == null)
             {
@@ -60,10 +60,10 @@ namespace TwitchClone.Api.Controllers
                 return Error("Channel not found or session mismatch", 404);
             }
 
-            // 2. Clear viewers for this channel
+      
             await _viewerTrackerService.ClearChannelViewers(request.ChannelId);
 
-            // 3. Notify all clients via SignalR
+    
             await _hubContext.Clients
                 .Group($"channel_{request.ChannelId}")
                 .SendAsync("StreamStopped", new
@@ -103,7 +103,7 @@ namespace TwitchClone.Api.Controllers
             });
         }
 
-        // ... остальные методы без изменений
+      
     }
 
     public class SfuStreamStopRequest

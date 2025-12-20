@@ -44,7 +44,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       .then((data) => {
         if (data.success && data.id && data.username && data.email) {
           setUser({ 
-            id: data.id, // ← сохраняем ID
+            id: data.id, 
             username: data.username, 
             email: data.email, 
             avatarUrl: data.avatarUrl,
@@ -74,7 +74,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const result = await loginUser({ username, password });
       if (result.success && result.token && result.id && result.username && result.email) {
         const newUser: User = { 
-          id: result.id, // ← сохраняем ID
+          id: result.id, 
           username: result.username, 
           email: result.email, 
           avatarUrl: result.avatarUrl,
@@ -98,7 +98,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const result = await registerUser({ username, email, password });
       if (result.success && result.token && result.id && result.username && result.email) {
         const newUser: User = { 
-          id: result.id, // ← сохраняем ID
+          id: result.id, 
           username: result.username, 
           email: result.email, 
           avatarUrl: result.avatarUrl,

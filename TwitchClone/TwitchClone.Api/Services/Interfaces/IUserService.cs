@@ -8,7 +8,7 @@ namespace TwitchClone.Api.Services
         Task<User?> GetById(int id);
         Task<User?> GetByUsername(string username);
         Task UpdateUser(User user);
-        Task UpdateProfile(int userId, UserProfileUpdateDto dto); // Add this method
+        Task UpdateProfile(int userId, UserProfileUpdateDto dto); 
         Task<bool> CheckUsernameExists(string username);
         Task<bool> CheckEmailExists(string email);
     }

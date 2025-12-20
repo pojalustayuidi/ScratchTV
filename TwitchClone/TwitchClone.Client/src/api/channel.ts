@@ -1,6 +1,6 @@
   const API_URL = "http://localhost:5172/api";
 
-  // Простая функция для отладки
+ 
   async function debugFetch(url: string, options?: RequestInit) {
     console.log(`Fetching: ${url}`, options);
     
@@ -14,7 +14,7 @@
         url: response.url
       });
       
-      // Читаем как текст для отладки
+     
       const text = await response.text();
       console.log('Response text:', text);
       
@@ -30,17 +30,15 @@
         }
         throw new Error(errorMessage);
       }
-      
-      // Если ответ пустой
+   
       if (!text || text.trim() === '') {
         return null;
       }
       
-      // Парсим JSON
+  
       try {
         const data = JSON.parse(text);
-        
-        // Проверяем формат бэкенда
+
         if (data.success === false) {
           throw new Error(data.message || "Request failed");
         }
@@ -56,7 +54,7 @@
     }
   }
 
-  // Простая проверка эндпоинта
+
   export const testChannelEndpoint = async (channelId: number) => {
     return debugFetch(`${API_URL}/channels/${channelId}/sessions/status`);
   };

@@ -1,4 +1,4 @@
-// Controllers/SubscriptionController.cs
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TwitchClone.Api.Services;

@@ -1,4 +1,4 @@
-// Controllers/StreamController.cs
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TwitchClone.Api.DTOs.Stream;

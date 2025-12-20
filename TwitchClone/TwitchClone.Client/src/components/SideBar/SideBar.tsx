@@ -12,7 +12,7 @@ export default function Sidebar() {
     { icon: <FaHome />, label: "Главная", path: "/", active: location.pathname === "/" },
     { icon: <FaHistory />, label: "История", path: "/history", active: location.pathname === "/history" },
     { icon: <FaList />, label: "Категории", path: "/categories", active: location.pathname === "/categories" },
-    { icon: <FaHeart />, label: "Подписки", path: "/following", active: location.pathname === "/following" },
+    { icon: <FaHeart />, label: "Подписки", path: "/subscriptions", active: location.pathname === "/subscriptions" },
   ];
 
   const categories = [
@@ -69,7 +69,6 @@ export default function Sidebar() {
     },
   ];
 
-  // Функция для генерации аватарки через Dicebear
   const getAvatarUrl = (seed: string) => {
     return `https://api.dicebear.com/7.x/avataaars/svg?seed=${seed}&radius=20&backgroundColor=9146ff`;
   };
@@ -80,7 +79,7 @@ export default function Sidebar() {
 
       <div className="sidebar-divider" />
 
-      {/* Основная навигация */}
+      {}
       <div className="sidebar-section">
         <h3 className="sidebar-section-title">НАВИГАЦИЯ</h3>
         <ul className="sidebar-list">
@@ -102,7 +101,7 @@ export default function Sidebar() {
 
       <div className="sidebar-divider" />
 
-      {/* Категории */}
+      {}
       <div className="sidebar-section">
         <div className="section-header">
           <h3 className="sidebar-section-title">ПОПУЛЯРНЫЕ КАТЕГОРИИ</h3>
@@ -129,7 +128,7 @@ export default function Sidebar() {
 
       <div className="sidebar-divider" />
 
-      {/* Лайв стримы */}
+      {}
       <div className="sidebar-section">
         <div className="section-header">
           <h3 className="sidebar-section-title">
@@ -151,7 +150,7 @@ export default function Sidebar() {
                   className="stream-avatar"
                   loading="lazy"
                   onError={(e) => {
-                    // Fallback если картинка не загрузилась
+                 
                     (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/initials/svg?seed=${stream.user}&backgroundColor=9146ff`;
                   }}
                 />
@@ -183,7 +182,7 @@ export default function Sidebar() {
         </button>
       </div>
 
-      {/* Создать стрим кнопка */}
+      {}
       <div className="sidebar-section">
         <button className="create-stream-btn" onClick={() => navigate("/stream/create")}>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">

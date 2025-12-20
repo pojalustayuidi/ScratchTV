@@ -25,7 +25,7 @@ namespace TwitchClone.Api.Models
         public bool IsLive { get; set; } = false;
         
         public int Viewers { get; set; } = 0;
-        public int SubscribersCount { get; set; } = 0; // ← НОВОЕ ПОЛЕ
+        public int SubscribersCount { get; set; } = 0; 
         [MaxLength(255)]
         public string? PreviewUrl { get; set; }
 
@@ -39,7 +39,7 @@ namespace TwitchClone.Api.Models
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public int PeakViewers { get; set; } = 0;
         
-        public int TotalStreamTime { get; set; } = 0; // в секундах
+        public int TotalStreamTime { get; set; } = 0; 
         
         public DateTime? LastStreamEndedAt { get; set; }
     }

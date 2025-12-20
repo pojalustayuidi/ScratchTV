@@ -1,4 +1,4 @@
-// Controllers/UploadController.cs
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TwitchClone.Api.Services;
@@ -14,7 +14,7 @@ namespace TwitchClone.Api.Controllers
         private readonly IWebHostEnvironment _env;
         private readonly ILogger<UploadController> _logger;
 
-        private const long MaxFileSize = 10 * 1024 * 1024; // 10MB
+        private const long MaxFileSize = 10 * 1024 * 1024; 
         private static readonly string[] AllowedExtensions = { ".jpg", ".jpeg", ".png", ".gif" };
 
         public UploadController(

@@ -491,18 +491,65 @@
 }
 
 /* Загрузка и ошибки */
-.channel-loading,
-.channel-error {
+.channel-loading {
+  min-height: 100vh;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 100vh;
-  font-size: 18px;
-  font-weight: 500;
+  background: linear-gradient(135deg, #0E0E10 0%, #1F1F23 100%);
+  color: #EFEFF1;
+  font-family: 'Inter', 'Segoe UI', sans-serif;
+  text-align: center;
   padding: 20px;
-  color: var(--twitch-text);
 }
 
+.channel-loading .spinner {
+  width: 60px;
+  height: 60px;
+  border: 4px solid rgba(145, 70, 255, 0.2);
+  border-top: 4px solid #9146FF;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 20px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.channel-loading p {
+  font-size: 18px;
+  color: #ADADB8;
+  font-weight: 500;
+}
+.channel-error {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #0E0E10 0%, #1F1F23 100%);
+  color: #EFEFF1;
+  font-family: 'Inter', 'Segoe UI', sans-serif;
+  text-align: center;
+  padding: 40px;
+  max-width: 500px;
+  margin: 0 auto;
+}
+.channel-error .error-icon {
+  font-size: 80px;
+  color: #FF4444;
+  margin-bottom: 30px;
+  filter: drop-shadow(0 0 20px rgba(255, 68, 68, 0.3));
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.7; transform: scale(1.05); }
+}
 .channel-error {
   color: var(--twitch-error);
 }

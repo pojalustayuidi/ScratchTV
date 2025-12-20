@@ -1,4 +1,4 @@
-// Controllers/ViewerController.cs
+
 using Microsoft.AspNetCore.Mvc;
 using TwitchClone.Api.DTOs.Viewer;
 using TwitchClone.Api.Services;

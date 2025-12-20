@@ -41,13 +41,11 @@ namespace TwitchClone.Api.Services.Implementations
                     return false;
                 }
 
-                // Check if there's already an active session
                 if (!string.IsNullOrEmpty(channel.CurrentSessionId) && channel.IsLive)
                 {
                     _logger.LogWarning("Channel {ChannelId} already has active session {CurrentSessionId}", 
                         channelId, channel.CurrentSessionId);
                     
-                    // Force stop previous session
                     await StopStreamSession(channelId, channel.CurrentSessionId);
                 }
 
@@ -115,7 +113,6 @@ namespace TwitchClone.Api.Services.Implementations
                     return false;
                 }
 
-                // Если передана конкретная sessionId, проверяем её
                 if (sessionId != null && channel.CurrentSessionId != sessionId)
                 {
                     _logger.LogWarning("Session mismatch: Channel={ChannelId}, Expected={Expected}, Actual={Actual}", 
@@ -123,7 +120,6 @@ namespace TwitchClone.Api.Services.Implementations
                     return false;
                 }
 
-                // Если канал не в прямом эфире, просто очищаем данные
                 if (!channel.IsLive)
                 {
                     _logger.LogDebug("Channel {ChannelId} is not live, but clearing session data", channelId);
@@ -136,7 +132,6 @@ namespace TwitchClone.Api.Services.Implementations
                     return true;
                 }
 
-                // ВАЖНО: Сохраняем время начала сессии для расчета длительности
                 var sessionStartTime = channel.SessionStartedAt;
                 
                 channel.IsLive = false;
@@ -144,9 +139,9 @@ namespace TwitchClone.Api.Services.Implementations
                 channel.SessionStartedAt = null;
                 channel.LastPingAt = null;
                 channel.LastStreamEndedAt = DateTime.UtcNow;
-                channel.Viewers = 0; // Сбрасываем зрителей при остановке стрима
+                channel.Viewers = 0; 
                 
-                // Рассчитываем длительность стрима и обновляем общее время
+           
                 if (sessionStartTime.HasValue)
                 {
                     var duration = (int)(DateTime.UtcNow - sessionStartTime.Value).TotalSeconds;
@@ -190,7 +185,7 @@ namespace TwitchClone.Api.Services.Implementations
                                       channel.LastPingAt.HasValue &&
                                       channel.LastPingAt.Value > DateTime.UtcNow.AddSeconds(-STREAM_TIMEOUT_SECONDS);
 
-                // Если сессия просрочена, автоматически завершаем её
+             
                 if (channel.IsLive && !hasActiveSession && !string.IsNullOrEmpty(channel.CurrentSessionId))
                 {
                     _logger.LogWarning("Auto-stopping expired session: Channel={ChannelId}, LastPing={LastPing}", 
@@ -350,7 +345,6 @@ namespace TwitchClone.Api.Services.Implementations
                     return null;
                 }
 
-                // Если sessionId не совпадает, возвращаем null
                 if (channel.CurrentSessionId != sessionId)
                 {
                     _logger.LogWarning("Session mismatch for force stop: Channel={ChannelId}, Expected={Expected}, Actual={Actual}", 
@@ -381,7 +375,7 @@ namespace TwitchClone.Api.Services.Implementations
 
                 channel.Viewers = viewersCount;
                 
-                // Update peak viewers
+       
                 if (viewersCount > channel.PeakViewers)
                 {
                     channel.PeakViewers = viewersCount;
@@ -400,7 +394,7 @@ namespace TwitchClone.Api.Services.Implementations
             }
         }
 
-        // NEW: Method to get all channels with expired streams
+    
         public async Task<List<int>> GetChannelsWithExpiredStreams()
         {
             try
@@ -424,7 +418,7 @@ namespace TwitchClone.Api.Services.Implementations
             }
         }
 
-        // NEW: Method to clean up all expired streams
+    
         public async Task<int> CleanupExpiredStreams()
         {
             try

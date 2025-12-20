@@ -53,7 +53,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 var accessToken = context.Request.Query["access_token"];
                 var path = context.HttpContext.Request.Path;
                 
-                // Для всех SignalR hubs
+            
                 if (!string.IsNullOrEmpty(accessToken) && 
                     (path.StartsWithSegments("/hubs/chat") || 
                      path.StartsWithSegments("/hubs/stream") ||
@@ -66,7 +66,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
-// === Services Registration (ИСПРАВЛЕНО - используем интерфейсы) ===
+
 
 // Core Services
 builder.Services.AddScoped<JwtService>();
@@ -152,7 +152,7 @@ builder.Services.AddSwaggerGen(c =>
         Description = "API для стриминговой платформы"
     });
     
-    // Добавляем поддержку JWT в Swagger
+
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Description = "JWT Authorization header using the Bearer scheme. Example: 'Bearer {token}'",
@@ -177,7 +177,7 @@ builder.Services.AddSwaggerGen(c =>
         }
     });
     
-    // Включаем XML комментарии если есть
+ 
     var xmlFile = $"{System.Reflection.Assembly.GetExecutingAssembly().GetName().Name}.xml";
     var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
     if (File.Exists(xmlPath))
@@ -198,7 +198,6 @@ var app = builder.Build();
 
 // === Middleware Pipeline ===
 
-// CORS должен быть первым
 app.UseCors("DevPolicy");
 
 if (app.Environment.IsDevelopment())
@@ -217,7 +216,7 @@ app.UseStaticFiles();
 app.UseAuthentication();
 app.UseAuthorization();
 
-// === Endpoint Mapping ===
+
 app.MapControllers();
 
 // SignalR Hubs

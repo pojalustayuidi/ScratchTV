@@ -20,7 +20,7 @@ export interface ChannelData {
   isLive: boolean;
   previewUrl?: string;
   subscribersCount: number;
-  userId?: number; // Добавим поле для ID пользователя
+  userId?: number; 
   username?: string; 
 }
 
@@ -42,7 +42,7 @@ export const registerUser = async (data: RegisterData) => {
       };
     }
 
-    // Теперь все данные лежат внутри result.data
+
     return {
       success: true,
       token: result.data.token,
@@ -116,7 +116,7 @@ export const getChannelByNickname = async (nickname: string) => {
   try {
     console.log(`Fetching channel for nickname: ${nickname}`);
     
-    // Используем тот же URL что и в бэкенде
+  
     const response = await fetch(`${API_URL}/channels/${nickname}`, {
       method: "GET",
       headers: {
@@ -127,7 +127,7 @@ export const getChannelByNickname = async (nickname: string) => {
     console.log(`Response status: ${response.status}`);
     
     if (!response.ok) {
-      // Если 404, значит канал не найден
+  
       if (response.status === 404) {
         throw new Error("Пользователь не найден");
       }
@@ -140,12 +140,10 @@ export const getChannelByNickname = async (nickname: string) => {
     const result = await response.json();
     console.log('API response:', result);
     
-    // Обрабатываем стандартный формат ответа бэкенда
     if (result.success === false) {
       throw new Error(result.message || "Ошибка при загрузке канала");
     }
     
-    // Извлекаем данные
     const data = result.data || result;
     
     return {

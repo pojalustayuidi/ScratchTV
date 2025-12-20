@@ -32,7 +32,7 @@ export default function LoginModal({ isOpen, onClose, onLogin }: LoginModalProps
         setUsername("");
         setPassword("");
         setSuccess(false);
-        onClose();              // закрываем через 1 сек
+        onClose();              
       }, 1000);
     } else {
       setError(result.message || "Ошибка входа");

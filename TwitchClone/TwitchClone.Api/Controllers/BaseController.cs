@@ -44,22 +44,22 @@ namespace TwitchClone.Api.Controllers
 
         protected int? GetUserId()
         {
-            // Способ 1: Ищем по стандартному ClaimTypes.NameIdentifier
+        
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
             
             if (userIdClaim == null)
             {
-                // Способ 2: Ищем по полному имени (для отладки)
+        
                 userIdClaim = User.FindFirst("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier");
                 
                 if (userIdClaim == null)
                 {
-                    // Способ 3: Ищем просто "id" (для совместимости со старым кодом)
+                
                     userIdClaim = User.FindFirst("id");
                     
                     if (userIdClaim == null)
                     {
-                        // Отладка: выводим все claims если не нашли
+                       
                         Console.WriteLine("=== DEBUG: User Claims ===");
                         foreach (var claim in User.Claims)
                         {
@@ -78,7 +78,7 @@ namespace TwitchClone.Api.Controllers
             return null;
         }
 
-        // Дополнительный метод для получения имени пользователя
+      
         protected string? GetUsername()
         {
             var usernameClaim = User.FindFirst(ClaimTypes.Name) 
@@ -88,7 +88,7 @@ namespace TwitchClone.Api.Controllers
             return usernameClaim?.Value;
         }
 
-        // Дополнительный метод для проверки админа
+  
         protected bool IsAdmin()
         {
             var isAdminClaim = User.FindFirst("IsAdmin") 
@@ -97,7 +97,7 @@ namespace TwitchClone.Api.Controllers
             return isAdminClaim?.Value?.ToLower() == "true";
         }
 
-        // Дополнительный метод для проверки модератора
+       
         protected bool IsModerator()
         {
             var isModeratorClaim = User.FindFirst("IsModerator") 

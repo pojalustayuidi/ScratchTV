@@ -1,4 +1,3 @@
-// Header.tsx - исправленная версия (без изменения AuthContext)
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import "./Header.css";
@@ -34,12 +33,10 @@ export default function Header({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Ссылка на аватар
   const avatarSrc = user?.avatarUrl
     ? `http://localhost:5172${user.avatarUrl}?t=${new Date().getTime()}`
     : `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.username || 'user'}&backgroundColor=9146ff`;
 
-  // Проверяем, является ли пользователь стримером через optional chaining
   const isStreamer = (user as any)?.isStreamer || false;
 
   return (

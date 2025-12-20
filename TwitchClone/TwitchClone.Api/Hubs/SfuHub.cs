@@ -1,4 +1,4 @@
-// Hubs/SfuHub.cs
+
 using Microsoft.AspNetCore.SignalR;
 using TwitchClone.Api.Services;
 

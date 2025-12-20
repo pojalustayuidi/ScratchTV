@@ -4,8 +4,17 @@ import { useParams } from "react-router-dom";
 import { getChannelByUsername } from "../../api/channel";
 import { type ChannelData } from "../../api/auth";
 import { useAuth } from "../../context/AuthContext";
-import { onStreamStarted, onStreamStopped } from "../../services/socketIOService";
-import { subscribe, unsubscribe, checkSubscription, getSubscriptionsCount } from "../../api/subscription";
+import { 
+  onStreamStarted, 
+  onStreamStopped,
+  onViewersCountUpdate 
+} from "../../services/socketIOService";
+import { 
+  subscribe, 
+  unsubscribe, 
+  checkSubscription, 
+  getSubscriptionsCount 
+} from "../../api/subscription";
 import "./Channel.css";
 import ChannelNotFound from "./ChannelNotFound";
 import Chat from "../../components/Chat/Chat";
@@ -19,7 +28,7 @@ export default function Channel() {
   
   const [channel, setChannel] = useState<ChannelData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<string | null>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [streamSessionId, setStreamSessionId] = useState<string | null>(null);
   const [showStreamEndedAlert, setShowStreamEndedAlert] = useState(false);
@@ -27,15 +36,26 @@ export default function Channel() {
   const [viewersCount, setViewersCount] = useState<number>(0);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isOwner, setIsOwner] = useState(false);
-  const [subscribed, setSubscribed] = useState(false);
+  
+  const [subscribed, setSubscribed] = useState<boolean>(() => {
+    const saved = localStorage.getItem(`subscription_${nickname}`);
+    return saved ? JSON.parse(saved) : false;
+  });
   const [subscriptionLoading, setSubscriptionLoading] = useState(false);
   const [subscriptionChecked, setSubscriptionChecked] = useState(false);
+
+  useEffect(() => {
+    if (nickname) {
+      localStorage.setItem(`subscription_${nickname}`, JSON.stringify(subscribed));
+    }
+  }, [subscribed, nickname]);
 
   useEffect(() => {
     if (!nickname) return;
 
     const loadChannel = async () => {
       setLoading(true);
+      setError(null);
       try {
         const response = await getChannelByUsername(nickname);
         
@@ -64,11 +84,11 @@ export default function Channel() {
           setViewersCount(formattedChannel.viewers || 0);
           
         } else {
-          setError(response?.message || "Канал не найден");
+          setError("Канал не найден");
         }
       } catch (err: any) {
         console.error("Error loading channel:", err);
-        setError(err.message || "Ошибка загрузки канала");
+        setError("Канал не найден");
       } finally {
         setLoading(false);
       }
@@ -77,64 +97,87 @@ export default function Channel() {
     loadChannel();
   }, [nickname, user]);
 
-  // 🔍 ВАЖНО: Проверка подписки пользователя
   useEffect(() => {
     const checkUserSubscription = async () => {
-      if (!channel?.id || !user || subscriptionChecked) {
+      if (!channel?.id || !user) {
         return;
       }
 
       try {
         const token = localStorage.getItem("token");
         if (!token) {
-          console.log("No token found, user is not subscribed");
+          console.log("No token found");
           setSubscribed(false);
           setSubscriptionChecked(true);
           return;
         }
 
-        console.log("🔍 Checking subscription for channel", channel.id);
+        console.log("Checking subscription for channel", channel.id);
         const result = await checkSubscription(channel.id, token);
-        console.log("📊 Subscription check result:", result);
+        console.log("Subscription check result:", result);
         
         setSubscribed(result.subscribed || false);
         setSubscriptionChecked(true);
         
+        const countResponse = await getSubscriptionsCount(channel.id);
+        setChannel(prev => prev ? { 
+          ...prev, 
+          subscribersCount: countResponse.count 
+        } : prev);
+        
       } catch (error) {
-        console.error("❌ Error checking subscription:", error);
-        setSubscribed(false);
+        console.error("Error checking subscription:", error);
         setSubscriptionChecked(true);
       }
     };
 
     checkUserSubscription();
-  }, [channel?.id, user, subscriptionChecked]);
+  }, [channel?.id, user]);
 
-  // 📊 Загрузка актуального счетчика подписчиков
+  useEffect(() => {
+    if (!channel?.id) return;
+
+    const unsubscribeSubscribers = onViewersCountUpdate(channel.id, (data: any) => {
+      if (data.subscribersCount !== undefined) {
+        console.log("Обновление счетчика подписчиков:", data.subscribersCount);
+        setChannel(prev => prev ? { 
+          ...prev, 
+          subscribersCount: data.subscribersCount 
+        } : prev);
+      }
+    });
+
+    return () => {
+      unsubscribeSubscribers();
+    };
+  }, [channel?.id]);
+
   useEffect(() => {
     const loadSubscribersCount = async () => {
       if (!channel?.id) return;
       
       try {
-        console.log("📊 Loading subscribers count for channel", channel.id);
+        console.log("Loading subscribers count for channel", channel.id);
         const countResponse = await getSubscriptionsCount(channel.id);
-        console.log("📊 Actual subscribers count:", countResponse.count);
+        console.log("Actual subscribers count:", countResponse.count);
         
-        // Обновляем счетчик
         setChannel(prev => {
           if (!prev) return prev;
           if (prev.subscribersCount !== countResponse.count) {
-            console.log(`🔄 Updating count: ${prev.subscribersCount} → ${countResponse.count}`);
+            console.log(`Updating count: ${prev.subscribersCount} → ${countResponse.count}`);
             return { ...prev, subscribersCount: countResponse.count };
           }
           return prev;
         });
       } catch (error) {
-        console.error("❌ Error loading subscribers count:", error);
+        console.error("Error loading subscribers count:", error);
       }
     };
 
     loadSubscribersCount();
+    
+    const interval = setInterval(loadSubscribersCount, 30000);
+    return () => clearInterval(interval);
   }, [channel?.id]);
 
   useEffect(() => {
@@ -216,55 +259,54 @@ export default function Channel() {
 
     try {
       if (subscribed) {
-        // Отписываемся
-        console.log("📩 Unsubscribing from channel", channel.id);
+        console.log("Unsubscribing from channel", channel.id);
         const result = await unsubscribe(channel.id, token);
         
-        console.log("📊 Unsubscribe result:", result);
+        console.log("Unsubscribe result:", result);
         
         if (result.success || result.unsubscribed) {
           setSubscribed(false);
-          // Запрашиваем актуальный счетчик после отписки
+          
           const countResponse = await getSubscriptionsCount(channel.id);
           setChannel(prev => prev ? { 
             ...prev, 
             subscribersCount: countResponse.count 
           } : prev);
-          console.log("✅ Unsubscribed successfully");
+          
+          console.log("Unsubscribed successfully");
         } else {
           alert("Не удалось отписаться");
         }
       } else {
-        // Подписываемся
-        console.log("📩 Subscribing to channel", channel.id);
+        console.log("Subscribing to channel", channel.id);
         const result = await subscribe(channel.id, token);
         
-        console.log("📊 Subscribe result:", result);
+        console.log("Subscribe result:", result);
         
         if (result.success && result.subscribed) {
           setSubscribed(true);
-          // Запрашиваем актуальный счетчик после подписки
+          
           const countResponse = await getSubscriptionsCount(channel.id);
           setChannel(prev => prev ? { 
             ...prev, 
             subscribersCount: countResponse.count 
           } : prev);
-          console.log("✅ Subscribed successfully");
+          
+          console.log("Subscribed successfully");
         } else if (result.alreadySubscribed) {
-          // Уже подписан, синхронизируем состояние
           setSubscribed(true);
           const countResponse = await getSubscriptionsCount(channel.id);
           setChannel(prev => prev ? { 
             ...prev, 
             subscribersCount: countResponse.count 
           } : prev);
-          console.log("ℹ️ Already subscribed");
+          console.log("Already subscribed");
         } else {
           alert("Не удалось подписаться");
         }
       }
     } catch (error: any) {
-      console.error("❌ Subscription error:", error);
+      console.error("Subscription error:", error);
       alert(error.message || "Ошибка при выполнении подписки");
     } finally {
       setSubscriptionLoading(false);
@@ -285,27 +327,7 @@ export default function Channel() {
     );
   }
 
-  if (error === "Пользователь не найден") {
-    return <ChannelNotFound />;
-  }
-
-  if (error) {
-    return (
-      <div className="channel-error">
-        <div className="error-icon">⚠️</div>
-        <h3>Ошибка</h3>
-        <p>{error}</p>
-        <button 
-          className="btn primary" 
-          onClick={() => window.location.reload()}
-        >
-          Обновить страницу
-        </button>
-      </div>
-    );
-  }
-
-  if (!channel) {
+  if (error || !channel) {
     return <ChannelNotFound />;
   }
 
@@ -412,12 +434,10 @@ export default function Channel() {
             <button 
               className={`btn subscribe-btn ${subscribed ? 'subscribed' : ''} ${subscriptionLoading ? 'loading' : ''}`}
               onClick={handleSubscribe}
-              disabled={subscriptionLoading || !subscriptionChecked}
+              disabled={subscriptionLoading}
             >
               {subscriptionLoading ? (
                 <span className="spinner-small"></span>
-              ) : !subscriptionChecked ? (
-                "Загрузка..."
               ) : subscribed ? (
                 <>
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
@@ -458,34 +478,6 @@ export default function Channel() {
                 />
               </div>
             )}
-            
-            {!channel.isLive && !isOwner && (
-              <div className="offline-overlay">
-                <div className="offline-content">
-                  <div className="offline-icon">
-                    <svg width="48" height="48" viewBox="0 0 24 24" fill="#9146FF">
-                      <path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM13 17H11V15H13V17ZM13 13H11V7H13V13Z"/>
-                    </svg>
-                  </div>
-                  <h3>Стрим офлайн</h3>
-                  <p>В данный момент трансляция не ведется</p>
-                  {viewersCount > 0 && (
-                    <div className="viewers-waiting">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M12 4.5C7 4.5 2.73 7.61 1 12C2.73 16.39 7 19.5 12 19.5C17 19.5 21.27 16.39 23 12C21.27 7.61 17 4.5 12 4.5ZM12 17C9.24 17 7 14.76 7 12C7 9.24 9.24 7 12 7C14.76 7 17 9.24 17 12C17 14.76 14.76 17 12 17ZM12 9C10.34 9 9 10.34 9 12C9 13.66 10.34 15 12 15C13.66 15 15 13.66 15 12C15 10.34 13.66 9 12 9Z"/>
-                      </svg>
-                      {viewersCount} зрителей в ожидании
-                    </div>
-                  )}
-                  <button 
-                    className="btn primary" 
-                    onClick={() => window.location.reload()}
-                  >
-                    Проверить снова
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
 
           <div className="description-section">
@@ -516,7 +508,12 @@ export default function Channel() {
 
         <div className="channel-right">
           <div className="chat-container">
-            <Chat channelId={channel.id} channelName={channel.name} isStreamer={isOwner} />
+            <Chat 
+              channelId={channel.id} 
+              channelName={channel.name} 
+              isStreamer={isOwner}
+              channelOwnerId={channel.userId || 0}
+            />
           </div>
         </div>
       </div>

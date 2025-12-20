@@ -7,7 +7,7 @@ namespace TwitchClone.Api.Services
     {
         private readonly IServiceScopeFactory _scopeFactory;
         private readonly ILogger<StreamSessionCleanupService> _logger;
-        private const int CLEANUP_INTERVAL_SECONDS = 30; // Увеличим интервал до 30 секунд
+        private const int CLEANUP_INTERVAL_SECONDS = 30; 
         private const int STREAM_TIMEOUT_SECONDS = 45;
 
         public StreamSessionCleanupService(

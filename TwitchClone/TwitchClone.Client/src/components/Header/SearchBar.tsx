@@ -1,4 +1,4 @@
-// SearchBar.tsx - УПРОЩЕННАЯ ВЕРСИЯ
+
 import "./SearchBar.css";
 
 export default function SearchBar() {

@@ -19,7 +19,6 @@ namespace TwitchClone.Api.Data
         {
             base.OnModelCreating(modelBuilder);
 
-            // User
             modelBuilder.Entity<User>(entity =>
             {
                 entity.HasIndex(u => u.Username).IsUnique();
@@ -32,13 +31,13 @@ namespace TwitchClone.Api.Data
                 entity.Property(u => u.Bio).HasMaxLength(1000);
                 entity.Property(u => u.ChatColor).HasMaxLength(7);
                 
-                // БАЗА ДАННЫХ сама установит время при вставке
+         
                 entity.Property(u => u.CreatedAt)
                     .HasDefaultValueSql("CURRENT_TIMESTAMP AT TIME ZONE 'UTC'")
                     .HasColumnType("timestamp with time zone");
             });
 
-            // Channel
+  
             modelBuilder.Entity<Channel>(entity =>
             {
                 entity.HasIndex(c => c.Name).IsUnique();
@@ -58,15 +57,14 @@ namespace TwitchClone.Api.Data
                 entity.Property(c => c.LastPingAt)
                     .HasDefaultValueSql("CURRENT_TIMESTAMP AT TIME ZONE 'UTC'")
                     .HasColumnType("timestamp with time zone");
-                
-                // Relationships
+    
                 entity.HasOne(c => c.User)
                     .WithOne()
                     .HasForeignKey<Channel>(c => c.UserId)
                     .OnDelete(DeleteBehavior.Cascade);
             });
 
-            // Subscription
+ 
             modelBuilder.Entity<Subscription>(entity =>
             {
                 entity.HasIndex(s => new { s.SubscriberId, s.ChannelId }).IsUnique();
@@ -75,7 +73,7 @@ namespace TwitchClone.Api.Data
                     .HasDefaultValueSql("CURRENT_TIMESTAMP AT TIME ZONE 'UTC'")
                     .HasColumnType("timestamp with time zone");
                 
-                // Relationships
+       
                 entity.HasOne(s => s.Subscriber)
                     .WithMany()
                     .HasForeignKey(s => s.SubscriberId)
@@ -87,7 +85,7 @@ namespace TwitchClone.Api.Data
                     .OnDelete(DeleteBehavior.Cascade);
             });
 
-            // ChatMessage
+
             modelBuilder.Entity<ChatMessage>(entity =>
             {
                 entity.HasIndex(m => m.ChannelId);
@@ -100,7 +98,7 @@ namespace TwitchClone.Api.Data
                     .HasDefaultValueSql("CURRENT_TIMESTAMP AT TIME ZONE 'UTC'")
                     .HasColumnType("timestamp with time zone");
                 
-                // Relationships
+
                 entity.HasOne(m => m.User)
                     .WithMany()
                     .HasForeignKey(m => m.UserId)
@@ -117,7 +115,7 @@ namespace TwitchClone.Api.Data
                     .OnDelete(DeleteBehavior.Cascade);
             });
 
-            // ChannelModerator
+  
             modelBuilder.Entity<ChannelModerator>(entity =>
             {
                 entity.HasIndex(m => new { m.ChannelId, m.UserId }).IsUnique();
@@ -126,7 +124,7 @@ namespace TwitchClone.Api.Data
                     .HasDefaultValueSql("CURRENT_TIMESTAMP AT TIME ZONE 'UTC'")
                     .HasColumnType("timestamp with time zone");
                 
-                // Relationships
+   
                 entity.HasOne(m => m.User)
                     .WithMany()
                     .HasForeignKey(m => m.UserId)
@@ -143,7 +141,7 @@ namespace TwitchClone.Api.Data
                     .OnDelete(DeleteBehavior.Cascade);
             });
 
-            // ChannelBan
+   
             modelBuilder.Entity<ChannelBan>(entity =>
             {
                 entity.HasIndex(b => new { b.ChannelId, b.UserId });
@@ -155,7 +153,7 @@ namespace TwitchClone.Api.Data
                     .HasDefaultValueSql("CURRENT_TIMESTAMP AT TIME ZONE 'UTC'")
                     .HasColumnType("timestamp with time zone");
                 
-                // Relationships
+   
                 entity.HasOne(b => b.User)
                     .WithMany()
                     .HasForeignKey(b => b.UserId)

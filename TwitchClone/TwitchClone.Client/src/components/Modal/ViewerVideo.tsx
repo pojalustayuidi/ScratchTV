@@ -7,6 +7,7 @@ import {
   requestViewerCount,
   sendViewerPing
 } from "../../services/socketIOService";
+import "./ViewerVideo.css";
 
 interface Props {
   channelId: number;
@@ -28,11 +29,18 @@ export default function ViewerVideo({
   const socketRef = useRef<any>(null);
   const reconnectTimeoutRef = useRef<number | null>(null);
   const viewerPingIntervalRef = useRef<number | null>(null);
+  const statsIntervalRef = useRef<number | null>(null);
   const connectingRef = useRef(false);
+  const [isPlaying, setIsPlaying] = useState(false);
 
   const [status, setStatus] = useState("Инициализация...");
   const [viewersCount, setViewersCount] = useState(0);
   const [logs, setLogs] = useState<string[]>([]);
+  const [showLogs, setShowLogs] = useState(false);
+  const [bitrate, setBitrate] = useState<string>("0 kbps");
+  const [connectionQuality, setConnectionQuality] = useState<"good" | "fair" | "poor">("good");
+  const [buffering, setBuffering] = useState(false);
+  const [isStreamLive, setIsStreamLive] = useState(false);
 
   const log = (msg: string) => {
     const text = `${new Date().toLocaleTimeString()} | ${msg}`;
@@ -40,7 +48,49 @@ export default function ViewerVideo({
     setLogs(l => [...l.slice(-15), text]);
   };
 
-  // ПРОСТАЯ ФУНКЦИЯ присоединения к каналу
+  const startStatsMonitoring = () => {
+    if (statsIntervalRef.current) {
+      clearInterval(statsIntervalRef.current);
+    }
+
+    statsIntervalRef.current = window.setInterval(async () => {
+      try {
+        if (consumersRef.current.size === 0) return;
+        
+        const consumer = Array.from(consumersRef.current.values())[0];
+        if (!consumer) return;
+        
+        const statsMap = await consumer.getStats();
+        const statsArray = Array.from(statsMap.values());
+        
+        const videoStats = statsArray.find(
+          (stat: any) => 
+            stat.type === "inbound-rtp" && 
+            stat.kind === "video" &&
+            typeof stat.bitrate === "number"
+        );
+        
+        if (videoStats && videoStats.bitrate) {
+          const mbps = (videoStats.bitrate / 1024 / 1024).toFixed(1);
+          setBitrate(`${mbps} Mbps`);
+          
+          const packetsLost = videoStats.packetsLost || 0;
+          const jitter = videoStats.jitter || 0;
+          
+          if (packetsLost > 15 || jitter > 0.05) {
+            setConnectionQuality("poor");
+          } else if (packetsLost > 5 || jitter > 0.02) {
+            setConnectionQuality("fair");
+          } else {
+            setConnectionQuality("good");
+          }
+        }
+      } catch (error) {
+        console.error("Ошибка при получении статистики:", error);
+      }
+    }, 3000);
+  };
+
   const joinChannelRoom = () => {
     const socket = socketRef.current;
     if (!socket?.connected) return;
@@ -48,15 +98,15 @@ export default function ViewerVideo({
     log(`Отправляем joinChannel для канала ${channelId}`);
     socket.emit("joinChannel", { channelId }, (response: any) => {
       if (response?.error) {
-        log(`⚠️ Не удалось присоединиться: ${response.error}`);
+        log(`Не удалось присоединиться: ${response.error}`);
       } else {
-        log(`✅ Присоединились к каналу ${channelId}`);
+        log(`Присоединились к каналу ${channelId}`);
       }
     });
   };
 
   const closeResources = () => {
-    log("🧹 Очистка ресурсов");
+    log("Очистка ресурсов");
 
     consumersRef.current.forEach(c => { 
       try { c.close(); } catch {} 
@@ -72,6 +122,8 @@ export default function ViewerVideo({
 
     if (videoRef.current) {
       videoRef.current.srcObject = null;
+      videoRef.current.onplaying = null;
+      videoRef.current.onwaiting = null;
     }
 
     if (viewerPingIntervalRef.current) {
@@ -79,7 +131,16 @@ export default function ViewerVideo({
       viewerPingIntervalRef.current = null;
     }
 
-    setStatus("Ожидание стрима");
+    if (statsIntervalRef.current) {
+      clearInterval(statsIntervalRef.current);
+      statsIntervalRef.current = null;
+    }
+
+    setIsPlaying(false);
+    setIsStreamLive(false);
+    setStatus("Стрим не активен");
+    setBitrate("0 kbps");
+    setConnectionQuality("good");
   };
 
   const connectToStream = async () => {
@@ -94,9 +155,8 @@ export default function ViewerVideo({
     }
 
     try {
-      log(`🔎 Проверяем стрим в канале ${channelId}`);
+      log(`Проверяем стрим в канале ${channelId}`);
 
-      // 1. Проверяем активность стрима
       const streamInfo = await new Promise<any>((resolve) => {
         socket.emit("checkStream", { channelId }, resolve);
       });
@@ -104,28 +164,27 @@ export default function ViewerVideo({
       log(`Результат проверки: ${JSON.stringify(streamInfo)}`);
 
       if (!streamInfo?.isLive) {
+        setIsStreamLive(false);
         setStatus("Стрим не активен");
         connectingRef.current = false;
         
-        // Все равно присоединяемся к комнате для получения обновлений
         joinChannelRoom();
         return;
       }
 
-      log(`✅ Стрим активен, подключаемся...`);
+      log(`Стрим активен, подключаемся...`);
+      setIsStreamLive(true);
+      setStatus("Подключение...");
 
-      // 2. Получаем RTP capabilities
       const rtpCaps = await new Promise<any>((resolve) => {
         socket.emit("getRouterRtpCapabilities", { channelId }, resolve);
       });
       log("RTP Capabilities получены");
 
-      // 3. Создаем устройство
       const device = new mediasoupClient.Device();
       await device.load({ routerRtpCapabilities: rtpCaps });
       deviceRef.current = device;
 
-      // 4. Создаем транспорт
       const transportData = await new Promise<any>((resolve) => {
         socket.emit("createWebRtcTransport", { channelId }, resolve);
       });
@@ -139,17 +198,16 @@ export default function ViewerVideo({
           { channelId, transportId: transport.id, dtlsParameters },
           (res: any) => {
             if (res?.error) { 
-              log("❌ Transport connect error: " + res.error); 
+              log("Transport connect error: " + res.error); 
               errback(new Error(res.error)); 
             } else { 
-              log("✅ Transport подключен"); 
+              log("Transport подключен"); 
               callback(); 
             }
           }
         );
       });
 
-      // 5. Создаем consumers (получаем видеопоток)
       const consumersData = await new Promise<any[]>((resolve) => {
         socket.emit("consume", {
           channelId,
@@ -164,7 +222,6 @@ export default function ViewerVideo({
         throw new Error("Нет доступных видеопотоков");
       }
 
-      // 6. Собираем медиапоток
       const mediaStream = new MediaStream();
 
       for (const info of consumersData) {
@@ -172,48 +229,76 @@ export default function ViewerVideo({
         consumersRef.current.set(consumer.id, consumer);
         mediaStream.addTrack(consumer.track);
         await consumer.resume();
-        log(`📹 Добавлен трек: ${consumer.kind} (id: ${consumer.id})`);
+        log(`Добавлен трек: ${consumer.kind} (id: ${consumer.id})`);
       }
 
-      // 7. Воспроизводим видео
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
-        videoRef.current.muted = true;
+        
+        videoRef.current.onplaying = () => {
+          setIsPlaying(true);
+          setBuffering(false);
+          log("Видео воспроизводится");
+        };
+        
+        videoRef.current.onwaiting = () => {
+          setBuffering(true);
+          log("Видео буферизируется...");
+        };
+        
         try {
           await videoRef.current.play();
-          log("🎬 Видео воспроизводится");
-        } catch (error) {
-          log("⚠️ Нужно взаимодействие для воспроизведения видео");
-          setStatus("Нажмите на видео для воспроизведения");
+          setStatus("LIVE");
+          log("Видео воспроизводится");
+        } catch (error: any) {
+          log(`Автовоспроизведение заблокировано: ${error.message}`);
+          // Не показываем "Нажмите для воспроизведения", просто оставляем LIVE статус
+          setStatus("LIVE");
         }
       }
 
-      // 8. Запускаем пинги и присоединяемся к комнате
       joinChannelRoom();
       
       viewerPingIntervalRef.current = window.setInterval(
         () => {
           sendViewerPing(channelId);
-          log("📡 Ping отправлен");
+          log("Ping отправлен");
         },
         10000
       );
 
-      setStatus("🔴 LIVE");
-      log("🎥 Успешно подключились к стриму");
+      startStatsMonitoring();
+      log("Успешно подключились к стриму");
 
     } catch (e: any) {
-      log(`❌ Ошибка подключения: ${e.message}`);
+      log(`Ошибка подключения: ${e.message}`);
       console.error("Полная ошибка:", e);
       closeResources();
       
-      // Пытаемся переподключиться через 3 секунды
       reconnectTimeoutRef.current = window.setTimeout(() => {
-        log("🔄 Пробуем переподключиться...");
+        log("Пробуем переподключиться...");
         connectToStream();
       }, 3000);
     } finally {
       connectingRef.current = false;
+    }
+  };
+
+  const getQualityColor = () => {
+    switch (connectionQuality) {
+      case "good": return "#00B26C";
+      case "fair": return "#FFD748";
+      case "poor": return "#EB0400";
+      default: return "#00B26C";
+    }
+  };
+
+  const getQualityText = () => {
+    switch (connectionQuality) {
+      case "good": return "Хорошее";
+      case "fair": return "Среднее";
+      case "poor": return "Плохое";
+      default: return "Хорошее";
     }
   };
 
@@ -224,47 +309,43 @@ export default function ViewerVideo({
     const socket = getSFUSocket();
     socketRef.current = socket;
 
-    // Подписываемся на обновления счетчика зрителей
     const unsub = subscribeToViewerCount(channelId, (count: number) => {
-      log(`📊 Обновление счетчика: ${count} зрителей`);
+      log(`Обновление счетчика: ${count} зрителей`);
       setViewersCount(count);
       onViewersCountUpdate?.(count);
     });
 
-    // Обработчик начала стрима
     const handleStreamStarted = ({ channelId: startedChannelId }: any) => { 
       if (startedChannelId === channelId) {
-        log("🎬 Получено событие начала стрима");
+        log("Получено событие начала стрима");
         connectToStream(); 
       }
     };
     
-    // Обработчик завершения стрима
     const handleStreamStopped = ({ channelId: stoppedChannelId, reason }: any) => { 
       if (stoppedChannelId === channelId) { 
-        log(`⏹️ Стрим завершен: ${reason || 'неизвестно'}`);
+        log(`Стрим завершен: ${reason || 'неизвестно'}`);
         closeResources(); 
         onStreamEnded?.(); 
-        setStatus(`Трансляция завершена`);
+        setIsStreamLive(false);
+        setStatus(`Стрим не активен`);
       }
     };
 
     socket.on("streamStarted", handleStreamStarted);
     socket.on("streamStopped", handleStreamStopped);
 
-    // Обработчик подключения к сокету
     const handleSocketConnect = () => {
-      log("✅ Подключились к SFU");
+      log("Подключились к SFU");
       
-      // Проверяем стрим сразу при подключении
       socket.emit("checkStream", { channelId }, (response: any) => {
         if (response?.isLive) {
-          log("🔎 Стрим активен, подключаемся...");
+          log("Стрим активен, подключаемся...");
           connectToStream();
         } else {
-          log("⏸️ Стрим неактивен");
+          log("Стрим неактивен");
+          setIsStreamLive(false);
           setStatus("Стрим не активен");
-          // Присоединяемся к комнате для получения обновлений
           joinChannelRoom();
         }
       });
@@ -272,13 +353,12 @@ export default function ViewerVideo({
 
     socket.on("connect", handleSocketConnect);
 
-    // Если уже подключены - сразу проверяем
     if (socket.connected) {
       handleSocketConnect();
     }
 
     return () => {
-      log("🧹 Очистка компонента");
+      log("Очистка компонента");
       unsub();
       closeResources();
       
@@ -288,8 +368,10 @@ export default function ViewerVideo({
       if (viewerPingIntervalRef.current) {
         clearInterval(viewerPingIntervalRef.current);
       }
+      if (statsIntervalRef.current) {
+        clearInterval(statsIntervalRef.current);
+      }
       
-      // Отписываемся от событий
       if (socket) {
         socket.off("streamStarted", handleStreamStarted);
         socket.off("streamStopped", handleStreamStopped);
@@ -299,44 +381,177 @@ export default function ViewerVideo({
   }, [channelId]);
 
   return (
-    <div style={{ padding: "10px", border: "1px solid #ccc", borderRadius: "8px" }}>
-      <h3>Зритель (Канал: {channelId})</h3>
-      <div style={{ display: "flex", gap: "20px", marginBottom: "10px" }}>
-        <div>👁️ <strong>{viewersCount}</strong> зрителей</div>
-        <div>📡 Статус: <strong>{status}</strong></div>
+    <div className="viewer-video-container">
+      <div className="viewer-header">
+        <div className="viewer-title">
+          <h3>
+            <span className="viewer-title-text">Прямой эфир</span>
+            <span className={`viewer-status ${status === 'LIVE' ? 'live' : 'offline'}`}>
+              <span className="status-dot"></span>
+              {status}
+            </span>
+          </h3>
+        </div>
+        <div className="channel-info">
+          <span className="channel-label">Канал ID:</span>
+          <span className="channel-value">{channelId}</span>
+        </div>
       </div>
 
-      <video
-        ref={videoRef}
-        autoPlay
-        playsInline
-        controls
-        style={{ 
-          width: "100%", 
-          background: "#000",
-          borderRadius: "5px",
-          maxHeight: "400px"
-        }}
-      />
+      <div className="video-wrapper">
+        {!isStreamLive ? (
+          <div className="preview-overlay">
+            <div className="preview-content">
+              {status === 'Инициализация...' || status === 'Подключение...' ? (
+                <>
+                  <div className="preview-icon">⚡</div>
+                  <div className="preview-text">ПОДКЛЮЧЕНИЕ...</div>
+                  <div className="preview-hint">Устанавливаем соединение с сервером</div>
+                </>
+              ) : (
+                <>
+                  <div className="preview-icon">⏸️</div>
+                  <div className="preview-text">СТРИМ НЕ АКТИВЕН</div>
+                  <div className="preview-hint">Ожидайте начала трансляции</div>
+                </>
+              )}
+            </div>
+          </div>
+        ) : null}
+        
+        {buffering && (
+          <div className="buffering-overlay">
+            <div className="buffering-spinner"></div>
+            <div className="buffering-text">БУФЕРИЗАЦИЯ...</div>
+          </div>
+        )}
+        
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          controls
+          className="viewer-video"
+          style={{ display: isStreamLive ? 'block' : 'none' }}
+        />
+        
+        {status === 'LIVE' && (
+          <div className="live-overlay">
+            <div className="live-badge">
+              <span className="live-dot"></span>
+              LIVE
+            </div>
+          </div>
+        )}
+      </div>
 
-      {logs.length > 0 && (
-        <div style={{ marginTop: "15px" }}>
-          <details>
-            <summary style={{ cursor: "pointer", color: "#666" }}>
-              Логи подключения ({logs.length})
-            </summary>
-            <pre style={{ 
-              background: "#f5f5f5", 
-              padding: "10px", 
-              borderRadius: "5px",
-              maxHeight: "200px",
-              overflowY: "auto",
-              fontSize: "11px",
-              marginTop: "5px"
-            }}>
-              {logs.join("\n")}
-            </pre>
-          </details>
+      <div className="viewer-info-panel">
+        <div className="info-header">
+          <h4>Информация о просмотре</h4>
+          <div className="status-message">
+            {status === 'LIVE' ? 'Трансляция в прямом эфире' : status}
+          </div>
+        </div>
+        
+        <div className="stream-stats">
+          <div className="stat-item">
+            <span className="stat-label">Зрители онлайн</span>
+            <span className={`stat-value ${viewersCount > 0 ? 'online' : 'offline'}`}>
+              👁️ {viewersCount}
+            </span>
+          </div>
+          
+          {isStreamLive && (
+            <>
+              <div className="stat-item">
+                <span className="stat-label">Качество потока</span>
+                <span 
+                  className="stat-value"
+                  style={{ color: getQualityColor() }}
+                >
+                  {connectionQuality === "good" ? "✅ " : 
+                   connectionQuality === "fair" ? "⚠️ " : "❌ "}
+                  {getQualityText()}
+                </span>
+              </div>
+              
+              <div className="stat-item">
+                <span className="stat-label">Битрейт</span>
+                <span className="stat-value">{bitrate}</span>
+              </div>
+              
+              <div className="stat-item">
+                <span className="stat-label">Состояние</span>
+                <span className="stat-value">
+                  {isPlaying ? "▶️ Воспроизведение" : "⏸️ Пауза"}
+                </span>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      <div className="viewer-controls">
+        <div className="buttons">
+          <button 
+            className="control-btn refresh-btn"
+            onClick={connectToStream}
+            disabled={connectingRef.current}
+          >
+            <span className="btn-icon">🔄</span>
+            Обновить поток
+          </button>
+          <button 
+            className="control-btn logs-btn" 
+            onClick={() => setShowLogs(!showLogs)}
+          >
+            <span className="btn-icon">{showLogs ? '📋' : '📊'}</span>
+            {showLogs ? 'Скрыть логи' : 'Показать логи'}
+          </button>
+        </div>
+        
+        {status === 'LIVE' && (
+          <div className="stream-hints">
+            <div className="hint-item success">
+              <span className="hint-icon">✅</span>
+              <span className="hint-text">
+                Вы подключены к прямому эфиру. Задержка: ~2-3 секунды
+              </span>
+            </div>
+          </div>
+        )}
+        
+        {buffering && (
+          <div className="stream-hints">
+            <div className="hint-item warning">
+              <span className="hint-icon">⏳</span>
+              <span className="hint-text">
+                Идет буферизация видео. Проверьте скорость интернета
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {showLogs && logs.length > 0 && (
+        <div className="logs-panel">
+          <div className="logs-header">
+            <h5>Логи подключения</h5>
+            <button 
+              className="logs-clear-btn"
+              onClick={() => setLogs([])}
+            >
+              Очистить
+            </button>
+          </div>
+          <div className="logs-content">
+            {logs.map((log, index) => (
+              <div key={index} className="log-entry">
+                <span className="log-time">{log.split('|')[0]}</span>
+                <span className="log-message">{log.split('|')[1]}</span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
